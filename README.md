@@ -6,7 +6,7 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.2** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.3** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
@@ -166,9 +166,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.2
-# index digest sha256:f6714660f77973060cc58bf8c6b2f5e620f0da1208c1581d37370ff5cc4688cd (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.2 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3
+# index digest sha256:fef4e10d9947283290bf449d069201578ef883f59d5bea5031b523ffc4e48429 (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -204,14 +204,18 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   the H3 text encoder, first-frame encoder, audio decoder and MP4 writer are minimax-h3-mlx's.
 - **Qwen-Image here is text to image only.** Editing, reference images, transparent output and guidance with a
   negative prompt are not ported; mflux has them.
-- **Turbo audio is tuned (1.2).** With three passes, the model's own audio schedule leaves the sound thin (little
-  bass, extra 1-4 kHz) with a fade-in over the first few hundred milliseconds. The scripts now run the audio on a
-  lower shift (1.3 instead of 3) whenever an adapter is loaded, at no cost in time. On the 8 s 2048x1152 clip the
-  120-300 Hz band goes from 15% to 38% of the energy, the spectral centre from 1,405 Hz to 998 Hz, the opening 400 ms
-  come up by 8 dB, the peak drops from clipping (1.00) to 0.78, and the spoken line, which had slipped to "these ones
-  for you", is transcribed correctly. `AUDIO_SHIFT=3` restores the old behaviour; `POINTS=5` adds a fourth pass, which
-  also helps and costs a third more time. This is measured from spectra and speech recognition on two prompts, not
-  judged by ear. The 2560x1440 and 1344x768 sample clips predate the change.
+- **Turbo audio varies by take, and thin takes get their bass lifted (1.3).** Across six renders of one prompt (three
+  seeds, two sizes) the 120-300 Hz band held anywhere from 8% to 42% of the energy; the generation size made no
+  consistent difference, and the 2x decoder does not touch the sound. After a Turbo render the scripts measure the
+  track: a full take is left exactly as rendered, a thin one gets a low shelf of up to 6 dB and a limiter, and the
+  picture is never re-encoded. On the 2048x1152 sample that was 3.6 dB. `AUDIO_EQ=off` skips it. This re-balances
+  what is there; it does not change the voice. If a take's sound is wrong, another `SEED` is the real fix, and
+  `POINTS=5` (a fourth pass, a third more time) gave the cleanest speech we measured.
+- **A lower audio shift is not the fix.** 1.2 defaulted to `AUDIO_SHIFT=1.3`, which measured fuller but, on listening,
+  roughened the speech; the voice's harmonics measure weaker too. 1.3 is back on the model's own schedule. The option
+  remains for experiments.
+- **One slip seen.** In the 2048x1152 sample the spoken line comes out as "these ones for you" by speech recognition,
+  where the other clips say "this one's for you".
 - **Quality is not graded.** Checked: stills of every clip, the scripted line by speech recognition, one image prompt
   against the mflux reference. Not checked: motion and audio by eye and ear, lip-sync, text rendering in general
   (the chalkboard reads "FRESH TODAY" at 1344x768 and comes out garbled at 864x480), other prompts and seeds.

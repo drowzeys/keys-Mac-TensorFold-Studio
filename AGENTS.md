@@ -1,7 +1,7 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.2` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3` (not a runtime; TensorFold wheel + lock + render scripts)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `55aa37c3`, own venv, int8 tensor-unit kernels
 
 ```bash
@@ -27,8 +27,8 @@ Rules:
   one-minute 1344x768 draft. `X2=1` needs WIDTH and HEIGHT in multiples of 64. 720-row canvases are not valid for the
   video model: use the QHD preset, which generates 736 rows and crops.
 - The 2x decoder is an upscale, softer than a native generation at the same size. Do not describe it as added detail.
-- Audio: with an adapter the scripts use audio shift 1.3 (the model's 3 sounds thin with a fade-in at 3 passes). Leave
-  it unless asked; `AUDIO_SHIFT=3` is the released behaviour.
+- Audio: Turbo takes vary; the scripts lift the bass of thin takes only (`AUDIO_EQ=off` to skip). Do not set
+  `AUDIO_SHIFT` below 3 by default: it roughens speech. For a bad-sounding take try another `SEED` or `POINTS=5`.
 - The image turbo adapter runs on six fixed nodes (`--nodes 1.0,0.9375,0.875,0.75,0.5,0.25`); do not change the step
   count with it. `TURBO=0` runs the base model at 40 steps.
 - Merge adapters with the tools (`--lora`), never by hand into bfloat16.
