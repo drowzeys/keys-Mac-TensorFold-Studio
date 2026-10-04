@@ -8,7 +8,8 @@ Co., Ltd. All Rights Reserved. Qwen-Image-2.1 and adapters derived from it may b
 only. Built with Qwen.
 
 MiniMax H3 is licensed under the MiniMax H3 Community License Agreement, Copyright © 2026 MiniMax. All Rights Reserved.
-The MiniMax H3 Community License limits the territories in which MiniMax H3 may be used.
+The MiniMax H3 Community License limits the territories in which MiniMax H3 may be used. The 2x video decoder
+(speach1sdef178/MiniMax-H3-X2-Detail-VAE) is a derivative of MiniMax H3 under the same licence.
 
 Read both licences before downloading the weights.
 

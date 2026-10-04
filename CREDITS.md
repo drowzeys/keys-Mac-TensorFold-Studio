@@ -67,6 +67,13 @@ optimizations matter for H3: few-step adapters, fused norm / RoPE / SwiGLU kerne
 and dense attention on a single device. The cached AdaLN tables and the fused QKV kernel here follow that list.
 Their runtime is CUDA; no Sol code runs here.
 
+## The 2x video decoder: speach1sdef178
+
+**speach1sdef178** trained **MiniMax-H3-X2-Detail-VAE**: H3's own ViT decoder with a head that packs 12 channels, so
+the same latents decode to frames twice as large. It is what makes the 2K finish and the fast drafts here possible,
+and its write-up is unusually honest about what the 2x output does and does not contain. This pack uses the decoder
+only; the reference-detail branch in the same file is not ported. (MiniMax H3 Community License.)
+
 ## Few-step adapters
 
 - **LightX2V** (ModelTC) — the **MiniMax H3 Turbo** 4-step adapter (`lightx2v/Minimax-h3-Turbo`, Apache-2.0),

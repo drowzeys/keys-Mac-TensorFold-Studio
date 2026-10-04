@@ -2,7 +2,7 @@
 # =============================================================================
 # One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + MiniMax H3 (video + audio)
 #
-#   bash oneshot-setup.sh               # install, fetch both models and both turbo adapters, render a test clip
+#   bash oneshot-setup.sh               # install, fetch both models, both turbo adapters and the 2x video decoder, render a test clip
 #   bash oneshot-setup.sh --image-only  # the image model only (33 GB instead of 177 GB), render a test image
 #   bash oneshot-setup.sh --no-render   # install and fetch only
 #   bash oneshot-setup.sh --verify      # check an existing install, no downloads, no render
@@ -18,9 +18,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.1}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
-TF_COMMIT="b93f53b428fa49f9041ed5953f4db78f20550ca2"
+TF_COMMIT="52960a1c300b93a5d24b8a3b4b0bc361d43cf11f"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
@@ -31,6 +31,9 @@ H3_ADAPTER_SHA256="d51d626fe0845da7e5845a47c323cf3f29086d44d24cb1a4b980882488746
 QWEN_ADAPTER_REPO="Viggle/Qwen-Image-2.1-viggle-turbo"
 QWEN_ADAPTER_NAME="Qwen-Image-2.1-viggle-turbo-v0.3-6step-lora-r256.safetensors"
 QWEN_ADAPTER_SHA256="f06c266e04438b5272bdfb99410421d52a65d7a37f6f42aabc3cb1faf0142644"
+X2_REPO="speach1sdef178/MiniMax-H3-X2-Detail-VAE"
+X2_NAME="MiniMax-H3-X2-Detail-v1.safetensors"
+X2_SHA256="2296840f4acedcaa976688e7d7b97f7bf570b136e400385d3f46224011897aac"
 MODE=""; VIDEO=1
 for arg in "$@"; do
   case "$arg" in
@@ -66,7 +69,7 @@ fetch_ghcr() {
 }
 
 step "TensorFold 0.6.5 + H3 and Qwen-Image families @ ${TF_COMMIT:0:8}, mflux @ ${MFLUX_COMMIT:0:8} (own venv at $PREFIX)"
-HAS_ENGINE='import tensorfold.families.qwen_image.sampler, tensorfold.families.h3.sampler, mflux.models.qwen21.qwen21_initializer'
+HAS_ENGINE='import inspect, tensorfold.families.qwen_image.sampler, mflux.models.qwen21.qwen21_initializer; from tensorfold.families.h3.vae_video import load_video_decoder as d; assert "upscale_decoder" in inspect.signature(d).parameters'
 if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_ENGINE" 2>/dev/null; then
   [ "$MODE" = "--verify" ] && die "TensorFold with the H3 and Qwen-Image families is not installed at $PREFIX"
   mkdir -p "$HERE/payload" "$PREFIX"
@@ -146,6 +149,16 @@ if [ "$VIDEO" = 1 ]; then
     mv "$H3_ADAPTER.partial" "$H3_ADAPTER"
   fi
   ok "$H3_ADAPTER_NAME"
+
+  step "2x video decoder (MiniMax-H3-X2-Detail-VAE, 5.2 GB)"
+  X2_VAE="$PREFIX/adapters/$X2_NAME"
+  if [ ! -f "$X2_VAE" ]; then
+    [ "$MODE" = "--verify" ] && die "no 2x video decoder at $X2_VAE"
+    "$PREFIX/venv/bin/hf" download "$X2_REPO" "$X2_NAME" LICENSE NOTICE --local-dir "$PREFIX/adapters/h3-x2" >/dev/null
+    echo "$X2_SHA256  $PREFIX/adapters/h3-x2/$X2_NAME" | shasum -a 256 -c - >/dev/null || die "2x video decoder checksum mismatch"
+    ln -sf "h3-x2/$X2_NAME" "$X2_VAE"
+  fi
+  ok "$X2_NAME"
 fi
 
 if [ "$MODE" = "--verify" ] || [ "$MODE" = "--no-render" ]; then

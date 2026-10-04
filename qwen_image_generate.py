@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render an image: Qwen-Image-2.1 through TensorFold's transformer, sampler and image decoder.
+"""Render images: Qwen-Image-2.1 through TensorFold's transformer, sampler and image decoder.
 
 The prompt encoder (Qwen3-VL language model and tokenizer) is borrowed from mflux, which must be importable.
 """
@@ -55,6 +55,7 @@ def main() -> int:
     parser.add_argument("--height", type=int, default=768)
     parser.add_argument("--steps", type=int, default=40)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seeds", help="comma-separated seeds: one image each from one load, written as NAME_s<seed>.png")
     parser.add_argument("--nodes", help="comma-separated raw noise levels for a distilled adapter")
     parser.add_argument("--lora", help="adapter safetensors to merge before quantizing")
     parser.add_argument("--no-int8", action="store_true", help="keep every projection in bfloat16")
@@ -86,30 +87,36 @@ def main() -> int:
 
     mark = time.perf_counter()
     nodes = tuple(float(v) for v in args.nodes.split(",")) if args.nodes else None
-    latents = sampler.denoise(dit, text, args.width, args.height, args.steps, args.seed, nodes,
-                              on_step=lambda i, n: print(f"[tensorfold] step {i + 1}/{n}", file=sys.stderr))
-    mx.eval(latents)
-    denoise_s = time.perf_counter() - mark
     forwards = len(nodes) if nodes else args.steps
+    seeds = [int(v) for v in args.seeds.split(",")] if args.seeds else [args.seed]
+    target = Path(args.output)
+    outputs = [target.with_name(f"{target.stem}_s{seed}{target.suffix}") for seed in seeds] if args.seeds else [target]
+    drawn = []
+    for seed in seeds:
+        latents = sampler.denoise(dit, text, args.width, args.height, args.steps, seed, nodes,
+                                  on_step=lambda i, n: print(f"[tensorfold] step {i + 1}/{n}", file=sys.stderr))
+        mx.eval(latents)
+        drawn.append(latents)
+    denoise_s = time.perf_counter() - mark
     if args.save_latents:
-        mx.save_safetensors(args.save_latents, {"latents": latents})
+        mx.save_safetensors(args.save_latents, {f"latents_{seed}": z for seed, z in zip(seeds, drawn)})
     del dit
     mx.clear_cache()
 
     mark = time.perf_counter()
     decoder = vae.load_decoder(args.model_dir, getattr(mx, args.vae_dtype))
-    image = decoder.decode(latents)
-    mx.eval(image)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    for latents, path in zip(drawn, outputs):
+        image = decoder.decode(latents)
+        mx.eval(image)
+        Image.fromarray((np.asarray(image[0]) * 255.0 + 0.5).astype(np.uint8)).save(path)
     decode_s = time.perf_counter() - mark
-    pixels = (np.asarray(image[0]) * 255.0 + 0.5).astype(np.uint8)
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(pixels).save(args.output)
     print("[tensorfold] " + json.dumps({
-        "output": args.output, "width": args.width, "height": args.height, "text_tokens": int(text.shape[1]),
-        "forwards": forwards, "int8": changed, "text_s": round(text_s, 1), "load_s": round(load_s, 1),
-        "denoise_s": round(denoise_s, 1), "per_forward_s": round(denoise_s / forwards, 3),
-        "decode_s": round(decode_s, 1), "total_s": round(time.perf_counter() - started, 1),
-        "peak_gib": round(mx.get_peak_memory() / 2**30, 1)}))
+        "output": [str(path) for path in outputs] if args.seeds else args.output, "width": args.width,
+        "height": args.height, "text_tokens": int(text.shape[1]), "images": len(seeds), "forwards": forwards,
+        "int8": changed, "text_s": round(text_s, 1), "load_s": round(load_s, 1), "denoise_s": round(denoise_s, 1),
+        "per_forward_s": round(denoise_s / (forwards * len(seeds)), 3), "decode_s": round(decode_s, 1),
+        "total_s": round(time.perf_counter() - started, 1), "peak_gib": round(mx.get_peak_memory() / 2**30, 1)}))
     return 0
 
 

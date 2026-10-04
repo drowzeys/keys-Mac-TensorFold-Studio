@@ -2,39 +2,84 @@
 
 **Thank you to everyone this stands on:** the Qwen team at Alibaba (Qwen-Image-2.1, Qwen3-VL), the MiniMax team
 (MiniMax H3), Ash Hart and the TensorFold contributors, antirez (h3.c), RobZombAI (H3MLX), mrbizarro (minimax-h3-mlx /
-Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo adapter), LightX2V (the video Turbo
-adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
+Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo adapter), speach1sdef178 (the 2x video
+decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.0** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.1** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
-few-step adapters for both
+few-step adapters for both · a 2x video decoder for 2K finals
 
-**Type what the picture shows and what happens next; get an image in about 10 seconds and an 8 second 1344x768 clip
-with sound six minutes after it.** One install, one command. Each model also runs on its own.
+**Scout, pick, animate, finish in 2K.** Six scout images from one prompt in 27 seconds; pick one; MiniMax H3 animates
+it with sound and a 2x decoder finishes it in 2K: an 8 second clip at 2048x1152 in two and a half minutes, or at
+2560x1440 in under six. A 1344x768 draft of the same 8 seconds takes 67 seconds.
 
-![Text to image to video: frames of the 8 s 1344x768 clip (top) and the 5 s 864x480 test clip (bottom)](samples/studio_strips.jpg)
+![Six scouts from one prompt](samples/scout_sheet.jpg)
 
-Both rows: [`prompts/baker-image.txt`](prompts/baker-image.txt) makes the first frame,
-[`prompts/baker-video.txt`](prompts/baker-video.txt) animates it. Clips and the image: [`samples/`](samples/).
+![Frames of the 2560x1440 clip, and a full-resolution crop](samples/qhd_frames.jpg)
+
+Prompts: [`prompts/baker-image.txt`](prompts/baker-image.txt) for the picture,
+[`prompts/baker-video.txt`](prompts/baker-video.txt) for what happens. Clips: [`samples/`](samples/).
+
+## The workflow
+
+```bash
+# 1. Scout: several first frames from one prompt, one model load (27 s for six), with a contact sheet
+bash scripts/scout.sh "A lighthouse keeper in a yellow raincoat on a cliff at dusk, storm clouds behind him" 6 scouts/keeper
+open scouts/keeper/sheet.jpg
+
+# 2. Draft the motion fast from the one you like: 8 s at 1344x768 in about a minute
+IMAGE_FILE=scouts/keeper/scout_s3.png X2=1 FRAMES=192 bash scripts/studio.sh "" \
+    "He raises a lantern, wind pulls at his coat, waves crash below. He says: Storm's coming." draft.mp4
+
+# 3. Finish in 2K: same image, same prompt. TWOK=1 is 2048x1152 (2.5 min); QHD=1 is 2560x1440 (6 min)
+IMAGE_FILE=scouts/keeper/scout_s3.png QHD=1 FRAMES=192 bash scripts/studio.sh "" \
+    "He raises a lantern, wind pulls at his coat, waves crash below. He says: Storm's coming." final.mp4
+```
+
+Or all at once, with no picking: `TWOK=1 bash scripts/studio.sh "the picture" "what happens" out.mp4`.
+
+- **Scouts are made at 1280x736**, which is exactly the frame the video model starts from for a 2560x1440 clip, so
+  the scout you pick is the frame the clip opens on, with no resize in between.
+- **Why 736 and not 720.** The video model needs sides in multiples of 32, and 720 is not one. The 2K preset
+  generates at 1280x736, decodes at 2x to 2560x1472 and centre-crops 16 rows top and bottom to 2560x1440.
+- **The draft and the final are different renders.** The draft generates at 672x384 and the final at 1280x736, so the
+  motion is similar in kind, not frame for frame.
 
 ## Measured (2026-10-04, Mac Studio M5 Ultra 256 GB, macOS 27.0.1, one run each)
 
 ### Text to image to video (`scripts/studio.sh`)
 
-| Output | Image | Video | Total |
-|---|---:|---:|---:|
-| 1344x768 image, then 8 s (192 frames) 1344x768 clip with stereo audio | 11 s | 353 s | **364 s** |
-| 864x480 image, then 8 s (192 frames) 864x480 clip with stereo audio | 10 s | 88 s | **98 s** |
-| 864x480 image, then 5 s (124 frames) 864x480 clip with stereo audio | 14 s | 60 s | **74 s** |
+| Output | Video generated at | Image | Video | Total |
+|---|---|---:|---:|---:|
+| Six scout images, 1280x736 (`scripts/scout.sh`) | | 27 s | | **27 s** |
+| **2560x1440, 8 s (192 frames), 2x decoder (`QHD=1`)** | 1280x736 | 12 s | 340 s | **352 s** |
+| **2048x1152, 8 s, 2x decoder (`TWOK=1`)** | 1024x576 | 10 s | 141 s | **151 s** |
+| 1344x768, 8 s, 2x decoder (`X2=1`) | 672x384 | 11 s | 56 s | **67 s** |
+| 1344x768, 8 s, native decode | 1344x768 | 11 s | 353 s | **364 s** |
+| 864x480, 8 s, native decode | 864x480 | 10 s | 88 s | **98 s** |
+| 864x480, 5 s (124 frames), native decode | 864x480 | 14 s | 60 s | **74 s** |
 
 **Resolution costs far more than length.** The video model works on one row per 32x32 pixels of every latent frame,
 and attention compares every row with every other, so its cost grows with the square of the row count. 5 s at 864x480
 is 16,500 rows (9.5 s per pass); 8 s at 864x480 is 24,826 rows (18.3 s per pass); 8 s at 1344x768 is 60,403 rows
 (104.9 s per pass). Going from 864x480 to 1344x768 is 2.5 times the pixels and 3.6 times the time for the same length.
 
+**What the 2x decoder is.** A replacement head for H3's own video decoder (speach1sdef178's MiniMax-H3-X2-Detail-VAE)
+that turns the same latents into frames twice as large along each side, in the normal decode time. It is an upscale: a
+1344x768 clip decoded from a 672x384 generation is softer than one generated at 1344x768, with stair-steps on
+high-contrast edges ([comparison](samples/x2_compare.jpg): native on top, 2x below). It earns its place twice: as a
+6 times faster draft, and as the last step to 2K from a full-size generation, where the 2560x1440 clip costs no more
+than the 1344x768 one. With `QHD=1` or `TWOK=1` the first frame is made at the size the video model starts from
+(1280x736 or 1024x576), since a larger picture would only be shrunk again.
+
+**Where the 2560x1440 time goes.** Of 352 s, the three video passes are 270 s (90 s each over 55,211 rows), the decode
+and MP4 45-55 s, loading and text encoding about 25 s. The passes are attention, which grows with the square of the
+row count; that is why 2048x1152 (34,915 rows, 33 s a pass) takes 151 s. For scale, 16:9 scouts for it:
+`WIDTH=1024 HEIGHT=576 bash scripts/scout.sh ...`.
+
 Wall time from the command to the finished files, both models loaded from disk each time. Both use the turbo adapters
-(6 image steps, 3 video passes) and the int8 kernels. In both clips the baker lifts the loaf, speaks the scripted line
+(6 image steps, 3 video passes) and the int8 kernels. In every clip the baker lifts the loaf, speaks the scripted line
 (checked by speech recognition) and smiles. The 864x480 run was the first after install, so its 14 s includes a cold
 read of the text encoder.
 
@@ -65,20 +110,20 @@ gives the same scene with a different rendering.
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
 brew install python@3.11 uv ffmpeg
-bash oneshot-setup.sh               # both models: 177 GB of weights
+bash oneshot-setup.sh               # both models and the 2x decoder: 182 GB of weights
 bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 ```
 
 `oneshot-setup.sh` does the following:
 
-1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `b93f53b4`), from the **GHCR
+1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `52960a1c`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
 3. Downloads `Qwen/Qwen-Image-2.1` (33 GB) to `~/qwen-models/Qwen-Image-2.1` and the Viggle turbo adapter (1.36 GB,
    checksum verified).
 4. Unless `--image-only`: clones minimax-h3-mlx at `79190205`, downloads the MiniMax H3 `FL2VA` partition (144 GB) to
-   `~/h3-models/MiniMax-H3` and the video Turbo adapter (1.96 GB, checksum verified).
+   `~/h3-models/MiniMax-H3`, the video Turbo adapter (1.96 GB) and the 2x video decoder (5.2 GB), both checksum verified.
 5. Renders a test: a 5 second clip from a generated image (`outputs/test.png`, `outputs/test.mp4`), or a test image
    with `--image-only`.
 
@@ -93,8 +138,9 @@ bash scripts/studio.sh "A lighthouse keeper in a yellow raincoat on a cliff at d
                        out.mp4
 ```
 
-The image is written beside the clip (`out.png`). Defaults: 1344x768, 124 frames (5 s). Set `FRAMES=192` for 8
-seconds, `WIDTH`/`HEIGHT` for another canvas (multiples of 32, at most 768x1344 pixels in total, the video model's
+The image is written beside the clip (`out.png`). Defaults: 1344x768, 124 frames (5 s), native decode. `QHD=1` makes
+a 2560x1440 clip; `X2=1` generates the video at half of `WIDTH` x `HEIGHT` and decodes at 2x (multiples of 64, up to
+2688x1536); `IMAGE_FILE=picture.png` animates an image you already have. Set `FRAMES=192` for 8 seconds, `WIDTH`/`HEIGHT` for another canvas (multiples of 32, at most 768x1344 pixels in total, the video model's
 released limit), `SEED`, or `IMAGE_SEED` and `VIDEO_SEED` separately. The script opens the video prompt with the line
 MiniMax's own image-to-video prompts use; `RAW_PROMPT=1` passes yours untouched.
 
@@ -120,9 +166,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0
-# index digest sha256:2cb2cf2df6558b850271b29e295cdbb56d81841ef0e9756c9ba7e8b2478ac1ac (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.1
+# index digest sha256:d3970f6f0f26a90b6a0429d9fc9dd8ec69db8cfc98dd88bdc3e2d63796109e2a (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.1 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -134,20 +180,22 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | Piece | Value |
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
-| Engine | TensorFold 0.6.5 (`609ca419`) + three commits, `drowzeys/TensorFold` branch `studio` @ `b93f53b428fa49f9041ed5953f4db78f20550ca2` (Apache-2.0) |
+| Engine | TensorFold 0.6.5 (`609ca419`) + five commits, `drowzeys/TensorFold` branch `studio` @ `52960a1c300b93a5d24b8a3b4b0bc361d43cf11f` (Apache-2.0) |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |
 | Video adapter | lightx2v MiniMax H3 Turbo v1.0, runner layout as published by Phosphene |
+| 2x video decoder | `speach1sdef178/MiniMax-H3-X2-Detail-VAE`, `MiniMax-H3-X2-Detail-v1.safetensors` (decoder only; its reference-detail branch is not used) |
 | Borrowed at run time | mflux @ `add5164e`: Qwen-Image prompt encoder. minimax-h3-mlx @ `79190205`: H3 text encoder, first-frame encoder, audio decoder, MP4 writer |
 | MLX | 0.32.3 |
-| Peak memory | image 28 GiB (15 GiB without the adapter); video 103 GiB during its adapter merge |
+| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; video 103 GiB during its adapter merge |
 
 ## Notes
 
 - **Licences decide what you may do with this.** Qwen-Image-2.1 and the Viggle adapter are under the **Qwen Research
   License Agreement: non-commercial research and evaluation only**; commercial use needs a licence from the Qwen
-  team. MiniMax H3 is under the MiniMax H3 Community License, which excludes some territories. This pack ships no
+  team. MiniMax H3 and the 2x decoder derived from it are under the MiniMax H3 Community License, which excludes some
+  territories. This pack ships no
   weights. Read both licences before downloading.
 - **This is a development render path, not a product.** There is no `tensorfold generate` command and no server; each
   script loads its model from disk and exits. The two models run one after the other, never together.
@@ -156,7 +204,9 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   the H3 text encoder, first-frame encoder, audio decoder and MP4 writer are minimax-h3-mlx's.
 - **Qwen-Image here is text to image only.** Editing, reference images, transparent output and guidance with a
   negative prompt are not ported; mflux has them.
-- **Quality is not graded.** Checked: stills of both clips, the scripted line by speech recognition, one image prompt
+- **One slip seen.** In the 2048x1152 sample the spoken line comes out as "these ones for you" by speech recognition,
+  where the other clips say "this one's for you".
+- **Quality is not graded.** Checked: stills of every clip, the scripted line by speech recognition, one image prompt
   against the mflux reference. Not checked: motion and audio by eye and ear, lip-sync, text rendering in general
   (the chalkboard reads "FRESH TODAY" at 1344x768 and comes out garbled at 864x480), other prompts and seeds.
 - **Turbo adapters are distilled models.** They trade some fidelity for speed; `TURBO=0` and `ADAPTER=none POINTS=21`
@@ -171,5 +221,5 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 
 Cite the original authors first: the Qwen team (Qwen-Image-2.1), the MiniMax team (MiniMax H3), Ash Hart and the
 TensorFold contributors, antirez (h3.c), RobZombAI (H3MLX), mrbizarro (minimax-h3-mlx, Phosphene), Filip Strand and
-the mflux contributors, Viggle, LightX2V, NVIDIA Research, FastVideo, and Apple MLX and its contributors. Full list:
+the mflux contributors, Viggle, speach1sdef178 (the 2x decoder), LightX2V, NVIDIA Research, FastVideo, and Apple MLX and its contributors. Full list:
 [CREDITS.md](CREDITS.md). Pack: drowzeys / keys.

@@ -60,7 +60,7 @@ def encode_first_frame(root: Path, image, width: int, height: int, patch):
     return rows
 
 
-def decode(model_dir, root: Path, latents, config, int8: bool = True):
+def decode(model_dir, root: Path, latents, config, int8: bool = True, upscale_decoder=None):
     """Frames from TensorFold's video decoder; the audio decoder is still minimax-h3-mlx's."""
 
     from minimax_h3_mlx.load import load_audio_vae
@@ -74,7 +74,7 @@ def decode(model_dir, root: Path, latents, config, int8: bool = True):
         parts[name] = round(time.perf_counter() - mark, 2)
         mark = time.perf_counter()
 
-    video_decoder = load_video_decoder(model_dir, int8=int8)
+    video_decoder = load_video_decoder(model_dir, int8=int8, upscale_decoder=upscale_decoder)
     audio_vae = load_audio_vae(root / "audio_vae")
     lap("load_vaes")
     video = unpatchify(latents.video_rows, latents.latent_frames, latents.latent_height, latents.latent_width,
@@ -144,6 +144,8 @@ def main():
     parser.add_argument("--int8-out", action="store_true", help="int8 attention-output projection")
     parser.add_argument("--unfused-qkv", action="store_true", help="int8 QKV without the fused norm and rotation")
     parser.add_argument("--keep-adaln", action="store_true", help="keep the AdaLN projection weights loaded")
+    parser.add_argument("--upscale-vae", help="safetensors of a packed-head (2x) video decoder; frames come out larger")
+    parser.add_argument("--crop", help="WxH: centre-crop the decoded frames before the MP4 is written")
     parser.add_argument("--float-vae", action="store_true", help="video decoder in float32, without int8 kernels")
     parser.add_argument("--first-frame", default=None, help="image the clip starts from (image to video)")
     parser.add_argument("--parity", action="store_true")
@@ -199,7 +201,14 @@ def main():
 
     started = time.perf_counter()
     frames, wave, rate = decode(args.model_dir, root, latents, h3.DiTConfig.from_checkpoint(args.model_dir),
-                                int8=not args.float_vae)
+                                int8=not args.float_vae, upscale_decoder=args.upscale_vae)
+    if args.crop:
+        crop_w, crop_h = (int(v) for v in args.crop.lower().split("x"))
+        full_h, full_w = frames.shape[1:3]
+        if crop_w > full_w or crop_h > full_h or (full_w - crop_w) % 2 or (full_h - crop_h) % 2:
+            raise SystemExit(f"cannot centre-crop {full_w}x{full_h} frames to {crop_w}x{crop_h}")
+        top, left = (full_h - crop_h) // 2, (full_w - crop_w) // 2
+        frames = np.ascontiguousarray(frames[:, top : top + crop_h, left : left + crop_w])
     from minimax_h3_mlx.media import save_mp4
 
     mux_started = time.perf_counter()
