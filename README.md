@@ -6,7 +6,7 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.3** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.4** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
@@ -166,9 +166,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3
-# index digest sha256:fef4e10d9947283290bf449d069201578ef883f59d5bea5031b523ffc4e48429 (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.4
+# index digest sha256:910819390f6787a0dfbe3a0ad088f7ef1415b3b9fc8b3d744937978f8f4d2c5c (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.4 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -204,6 +204,11 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   the H3 text encoder, first-frame encoder, audio decoder and MP4 writer are minimax-h3-mlx's.
 - **Qwen-Image here is text to image only.** Editing, reference images, transparent output and guidance with a
   negative prompt are not ported; mflux has them.
+- **No more hard clipping (1.4).** The audio decoder ended in a hard clip at full scale, and loud takes ran into it: on
+  a 15 s speech clip the Turbo render peaked at 1.25 and had 1,391 flattened samples, which is audible as harshness
+  (the 20-step render had 516). The render now lifts that clip and turns an overshooting take down as a whole
+  (2.9 dB there), so no sample is flattened. Noticed by ear by the pack's owner; the fix is measured, and the
+  20-step render still sounds warmer than Turbo to the same ear.
 - **Turbo audio varies by take, and thin takes get their bass lifted (1.3).** Across six renders of one prompt (three
   seeds, two sizes) the 120-300 Hz band held anywhere from 8% to 42% of the energy; the generation size made no
   consistent difference, and the 2x decoder does not touch the sound. After a Turbo render the scripts measure the

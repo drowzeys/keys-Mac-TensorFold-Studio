@@ -1,7 +1,7 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.3` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.4` (not a runtime; TensorFold wheel + lock + render scripts)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `55aa37c3`, own venv, int8 tensor-unit kernels
 
 ```bash
