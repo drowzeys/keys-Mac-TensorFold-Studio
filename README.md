@@ -115,6 +115,7 @@ aspect ratio.
 
 ```bash
 docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0
+# index digest sha256:2cb2cf2df6558b850271b29e295cdbb56d81841ef0e9756c9ba7e8b2478ac1ac (linux/arm64 + linux/amd64)
 docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0 cp -a /payload/. /out/payload/
 ```
 
