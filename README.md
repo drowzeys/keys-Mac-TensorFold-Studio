@@ -25,7 +25,13 @@ Both rows: [`prompts/baker-image.txt`](prompts/baker-image.txt) makes the first 
 | Output | Image | Video | Total |
 |---|---:|---:|---:|
 | 1344x768 image, then 8 s (192 frames) 1344x768 clip with stereo audio | 11 s | 353 s | **364 s** |
+| 864x480 image, then 8 s (192 frames) 864x480 clip with stereo audio | 10 s | 88 s | **98 s** |
 | 864x480 image, then 5 s (124 frames) 864x480 clip with stereo audio | 14 s | 60 s | **74 s** |
+
+**Resolution costs far more than length.** The video model works on one row per 32x32 pixels of every latent frame,
+and attention compares every row with every other, so its cost grows with the square of the row count. 5 s at 864x480
+is 16,500 rows (9.5 s per pass); 8 s at 864x480 is 24,826 rows (18.3 s per pass); 8 s at 1344x768 is 60,403 rows
+(104.9 s per pass). Going from 864x480 to 1344x768 is 2.5 times the pixels and 3.6 times the time for the same length.
 
 Wall time from the command to the finished files, both models loaded from disk each time. Both use the turbo adapters
 (6 image steps, 3 video passes) and the int8 kernels. In both clips the baker lifts the loaf, speaks the scripted line
