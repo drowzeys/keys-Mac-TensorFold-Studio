@@ -6,7 +6,7 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.1** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.2** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
@@ -116,7 +116,7 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 
 `oneshot-setup.sh` does the following:
 
-1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `52960a1c`), from the **GHCR
+1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `55aa37c3`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
@@ -166,9 +166,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.1
-# index digest sha256:d3970f6f0f26a90b6a0429d9fc9dd8ec69db8cfc98dd88bdc3e2d63796109e2a (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.1 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.2
+# index digest sha256:f6714660f77973060cc58bf8c6b2f5e620f0da1208c1581d37370ff5cc4688cd (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.2 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -180,7 +180,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | Piece | Value |
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
-| Engine | TensorFold 0.6.5 (`609ca419`) + five commits, `drowzeys/TensorFold` branch `studio` @ `52960a1c300b93a5d24b8a3b4b0bc361d43cf11f` (Apache-2.0) |
+| Engine | TensorFold 0.6.5 (`609ca419`) + seven commits, `drowzeys/TensorFold` branch `studio` @ `55aa37c3c7f19a206b02aacf12946570ac50c069` (Apache-2.0) |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |
@@ -204,8 +204,14 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   the H3 text encoder, first-frame encoder, audio decoder and MP4 writer are minimax-h3-mlx's.
 - **Qwen-Image here is text to image only.** Editing, reference images, transparent output and guidance with a
   negative prompt are not ported; mflux has them.
-- **One slip seen.** In the 2048x1152 sample the spoken line comes out as "these ones for you" by speech recognition,
-  where the other clips say "this one's for you".
+- **Turbo audio is tuned (1.2).** With three passes, the model's own audio schedule leaves the sound thin (little
+  bass, extra 1-4 kHz) with a fade-in over the first few hundred milliseconds. The scripts now run the audio on a
+  lower shift (1.3 instead of 3) whenever an adapter is loaded, at no cost in time. On the 8 s 2048x1152 clip the
+  120-300 Hz band goes from 15% to 38% of the energy, the spectral centre from 1,405 Hz to 998 Hz, the opening 400 ms
+  come up by 8 dB, the peak drops from clipping (1.00) to 0.78, and the spoken line, which had slipped to "these ones
+  for you", is transcribed correctly. `AUDIO_SHIFT=3` restores the old behaviour; `POINTS=5` adds a fourth pass, which
+  also helps and costs a third more time. This is measured from spectra and speech recognition on two prompts, not
+  judged by ear. The 2560x1440 and 1344x768 sample clips predate the change.
 - **Quality is not graded.** Checked: stills of every clip, the scripted line by speech recognition, one image prompt
   against the mflux reference. Not checked: motion and audio by eye and ear, lip-sync, text rendering in general
   (the chalkboard reads "FRESH TODAY" at 1344x768 and comes out garbled at 864x480), other prompts and seeds.

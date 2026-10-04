@@ -7,7 +7,8 @@
 #   X2=1 WIDTH=1344 HEIGHT=768 bash scripts/video.sh "a prompt" out.mp4   # generate at 672x384, decode at 2x
 # Environment: PREFIX, H3_MODEL_DIR, ADAPTER (a file, or none), FIRST_FRAME (an image the clip starts from; it is
 # stretched onto the canvas, so match its aspect ratio), WIDTH, HEIGHT, FRAMES (17n+5), SEED,
-# POINTS (sigma points: one more than the forwards), EXTRA (extra flags for h3_generate.py).
+# POINTS (sigma points: one more than the forwards; POINTS=5 gives the Turbo adapter a fourth pass), AUDIO_SHIFT
+# (the audio schedule's shift: 1.3 with an adapter, the model's 3 without), EXTRA (extra flags for h3_generate.py).
 # X2=1 makes WIDTH x HEIGHT the size of the finished clip: the model generates at half of each and the 2x decoder
 # ($X2_VAE) doubles it, so both must be multiples of 64 (default 1344x768). CROP=WxH centre-crops the frames before the clip is written.
 set -euo pipefail
@@ -29,7 +30,13 @@ fi
 ARGS=("$H3_MODEL_DIR" -o "$OUT" --width "$W" --height "$H" --frames "${FRAMES:-124}"
       --seed "${SEED:-0}" --points "${POINTS:-4}" --int8-mlp --int8-qkv --int8-out)
 [ "${X2:-0}" != 1 ] || ARGS+=(--upscale-vae "$X2_VAE")
-[ "$ADAPTER" = none ] || ARGS+=(--lora "$ADAPTER")
+# few-step audio: the released audio shift (3) leaves the Turbo adapter's audio thin with a fade-in; 1.3 measures
+# close to the 20-step sound. AUDIO_SHIFT overrides either default.
+if [ "$ADAPTER" = none ]; then
+  [ -z "${AUDIO_SHIFT:-}" ] || ARGS+=(--audio-shift "$AUDIO_SHIFT")
+else
+  ARGS+=(--lora "$ADAPTER" --audio-shift "${AUDIO_SHIFT:-1.3}")
+fi
 [ -z "${FIRST_FRAME:-}" ] || ARGS+=(--first-frame "$FIRST_FRAME")
 if [ -n "${PROMPT_FILE:-}" ]; then ARGS+=(--prompt-file "$PROMPT_FILE"); else ARGS+=(--prompt "$PROMPT"); fi
 [ -z "${CROP:-}" ] || ARGS+=(--crop "$CROP")
