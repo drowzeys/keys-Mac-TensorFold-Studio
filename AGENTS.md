@@ -1,12 +1,12 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
-**Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
+**Repo:** https://github.com/drowzeys/keys-Mac-Tensorfold-Creator-Studio-with-MiniMaxH3-Qwen2.1-integrated  
 **Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.0` (not a runtime; TensorFold wheel + lock + render scripts)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `b93f53b4`, own venv, int8 tensor-unit kernels
 
 ```bash
-git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
-cd keys-Mac-TensorFold-Studio
+git clone https://github.com/drowzeys/keys-Mac-Tensorfold-Creator-Studio-with-MiniMaxH3-Qwen2.1-integrated.git
+cd keys-Mac-Tensorfold-Creator-Studio-with-MiniMaxH3-Qwen2.1-integrated
 brew install python@3.11 uv ffmpeg
 bash oneshot-setup.sh               # both models (177 GB of weights) and a test clip; --image-only for 33 GB
 bash scripts/studio.sh "the picture" "what happens in the clip" out.mp4   # text -> image -> video with sound
