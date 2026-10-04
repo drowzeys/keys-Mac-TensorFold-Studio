@@ -1,4 +1,4 @@
-# keys-Mac-Tensorfold-Creator-Studio with MiniMax H3 + Qwen-Image-2.1 integrated
+# keys-Mac-TensorFold-Studio (MiniMax H3 + Qwen-Image-2.1)
 
 **Thank you to everyone this stands on:** the Qwen team at Alibaba (Qwen-Image-2.1, Qwen3-VL), the MiniMax team
 (MiniMax H3), Ash Hart and the TensorFold contributors, antirez (h3.c), RobZombAI (H3MLX), mrbizarro (minimax-h3-mlx /
@@ -56,8 +56,8 @@ gives the same scene with a different rendering.
 ## One-shot
 
 ```bash
-git clone https://github.com/drowzeys/keys-Mac-Tensorfold-Creator-Studio-with-MiniMaxH3-Qwen2.1-integrated.git
-cd keys-Mac-Tensorfold-Creator-Studio-with-MiniMaxH3-Qwen2.1-integrated
+git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
+cd keys-Mac-TensorFold-Studio
 brew install python@3.11 uv ffmpeg
 bash oneshot-setup.sh               # both models: 177 GB of weights
 bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
