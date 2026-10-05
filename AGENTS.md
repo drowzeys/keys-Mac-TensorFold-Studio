@@ -1,8 +1,8 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.4` (not a runtime; TensorFold wheel + lock + render scripts)  
-**Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `55aa37c3`, own venv, int8 tensor-unit kernels
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.5` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `218bfe24`, own venv, int8 tensor-unit kernels
 
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
@@ -27,8 +27,11 @@ Rules:
   one-minute 1344x768 draft. `X2=1` needs WIDTH and HEIGHT in multiples of 64. 720-row canvases are not valid for the
   video model: use the QHD preset, which generates 736 rows and crops.
 - The 2x decoder is an upscale, softer than a native generation at the same size. Do not describe it as added detail.
-- Audio: Turbo takes vary; the scripts lift the bass of thin takes only (`AUDIO_EQ=off` to skip). Do not set
-  `AUDIO_SHIFT` below 3 by default: it roughens speech. For a bad-sounding take try another `SEED` or `POINTS=5`.
+- Standard video = Turbo adapter, 5 passes, then the sound made again by the base model (`REVOICE=20`). Do not go back
+  to the adapter's own sound (`REVOICE=0`) unless asked: it was judged poor by ear. `QUALITY=high` = 20 steps, no
+  adapter, about three times slower. `POINTS` is passes plus one.
+- Levels are handled after the render (no hard clip; bass lifted on thin takes; `AUDIO_EQ=off` to skip). Leave
+  `AUDIO_SHIFT` alone.
 - The image turbo adapter runs on six fixed nodes (`--nodes 1.0,0.9375,0.875,0.75,0.5,0.25`); do not change the step
   count with it. `TURBO=0` runs the base model at 40 steps.
 - Merge adapters with the tools (`--lora`), never by hand into bfloat16.

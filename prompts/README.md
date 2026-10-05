@@ -6,3 +6,5 @@
   text-to-video test prompt for `scripts/video.sh`.
 - `baker-long-speech.txt`: the same baker speaking a 37-word passage, for 15 second clips (`FRAMES=362`); a test of
   sustained speech.
+- `singer-image.txt`, `singer-video.txt` (15 s, `FRAMES=362`) and `singer-video-8s.txt` (`FRAMES=192`): an
+  unaccompanied singer, the test that showed the adapter's sound at its worst.

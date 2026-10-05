@@ -18,9 +18,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.4}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.5}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
-TF_COMMIT="55aa37c3c7f19a206b02aacf12946570ac50c069"
+TF_COMMIT="218bfe2497ad8bf8f3d31a8c5943972244c9e9bc"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
@@ -69,7 +69,7 @@ fetch_ghcr() {
 }
 
 step "TensorFold 0.6.5 + H3 and Qwen-Image families @ ${TF_COMMIT:0:8}, mflux @ ${MFLUX_COMMIT:0:8} (own venv at $PREFIX)"
-HAS_ENGINE='import inspect, tensorfold.families.qwen_image.sampler, mflux.models.qwen21.qwen21_initializer; from tensorfold.families.h3.vae_video import load_video_decoder as d; assert "upscale_decoder" in inspect.signature(d).parameters; from tensorfold.families.h3.sampler import denoise as n; assert "audio_shift" in inspect.signature(n).parameters'
+HAS_ENGINE='import inspect, tensorfold.families.qwen_image.sampler, mflux.models.qwen21.qwen21_initializer; from tensorfold.families.h3.vae_video import load_video_decoder as d; assert "upscale_decoder" in inspect.signature(d).parameters; from tensorfold.families.h3.sampler import denoise as n; assert "audio_shift" in inspect.signature(n).parameters; from tensorfold.families.h3.sampler import revoice'
 if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_ENGINE" 2>/dev/null; then
   [ "$MODE" = "--verify" ] && die "TensorFold with the H3 and Qwen-Image families is not installed at $PREFIX"
   mkdir -p "$HERE/payload" "$PREFIX"
@@ -176,7 +176,7 @@ if [ "$VIDEO" = 0 ]; then
   echo; echo "DONE. $HERE/outputs/test.png"
   exit 0
 fi
-step "Test clip: text -> image -> 5 s video with sound, 864x480, both turbo adapters, int8 kernels"
+step "Test clip: text -> image -> 5 s video with sound, 864x480, standard settings"
 WIDTH=864 HEIGHT=480 FRAMES=124 SEED=42 IMAGE_PROMPT_FILE="$HERE/prompts/baker-image.txt" \
   VIDEO_PROMPT_FILE="$HERE/prompts/baker-video.txt" bash "$HERE/scripts/studio.sh" "" "" "$HERE/outputs/test.mp4" 2>&1 \
   | grep -E "tensorfold\] \{|studio\]|rounded|rror|Trace" | sed 's/^/  /'
