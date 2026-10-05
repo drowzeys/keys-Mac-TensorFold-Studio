@@ -38,8 +38,8 @@ Both transformers, the samplers, the adapter merges, the audio step, the int8 ke
 decoders run in TensorFold on MLX.
 
 **Scout, pick, animate, finish in 2K.** Six scout images from one prompt in 27 seconds; pick one; MiniMax H3 animates
-it with sound and a 2x decoder finishes it in 2K: an 8 second clip at 2048x1152 in two and a half minutes, or at
-2560x1440 in under six. A 1344x768 draft of the same 8 seconds takes 67 seconds.
+it with sound and a 2x decoder finishes it in 2K: an 8 second clip at 2048x1152 in five minutes, or at 2560x1440 in
+under eleven. A 1344x768 draft of the same 8 seconds takes 108 seconds.
 
 ![Six scouts from one prompt](samples/scout_sheet.jpg)
 
@@ -51,6 +51,21 @@ The newest sample, made with the standard setting: [`samples/singer_standard_8s.
 Prompts: [`prompts/baker-image.txt`](prompts/baker-image.txt) for the picture,
 [`prompts/baker-video.txt`](prompts/baker-video.txt) for what happens. Clips: [`samples/`](samples/).
 
+## The base-model audio step
+
+The Turbo adapter is what makes the picture fast, and it is also what spoils the sound. So the sound is made twice:
+once with the picture, by the adapter, and thrown away; then again by the base model, which is the one that sounds
+right.
+
+1. After the Turbo passes, the adapter-merged model is unloaded and the released weights are loaded (4 s).
+2. The finished picture, the first frame and the prompt go through the model once, held still, and every block's
+   attention keys and values over them are stored.
+3. The audio starts again from noise and is denoised in 20 steps. Each step runs only the audio rows (1,206 of 29,009
+   on a 15 second clip) against the stored keys and values: about 1.3 s a step instead of 24 s.
+
+It is on by default whenever the adapter is used. `REVOICE=0` keeps the adapter's own sound; `REVOICE=<steps>` sets the
+number of audio steps (20 is the only value tried). Proposed upstream as a draft, ashhart/TensorFold#405.
+
 ## The workflow
 
 ```bash
@@ -58,11 +73,11 @@ Prompts: [`prompts/baker-image.txt`](prompts/baker-image.txt) for the picture,
 bash scripts/scout.sh "A lighthouse keeper in a yellow raincoat on a cliff at dusk, storm clouds behind him" 6 scouts/keeper
 open scouts/keeper/sheet.jpg
 
-# 2. Draft the motion from the one you like: 8 s at 1344x768 in about a minute and a half
+# 2. Draft the motion from the one you like: 8 s at 1344x768 in under two minutes
 IMAGE_FILE=scouts/keeper/scout_s3.png X2=1 FRAMES=192 bash scripts/studio.sh "" \
     "He raises a lantern, wind pulls at his coat, waves crash below. He says: Storm's coming." draft.mp4
 
-# 3. Finish in 2K: same image, same prompt. TWOK=1 is 2048x1152, QHD=1 is 2560x1440 (QUALITY=high for 20 steps)
+# 3. Finish in 2K: same image, same prompt. TWOK=1 is 2048x1152 (5 min), QHD=1 is 2560x1440 (11 min)
 IMAGE_FILE=scouts/keeper/scout_s3.png QHD=1 FRAMES=192 bash scripts/studio.sh "" \
     "He raises a lantern, wind pulls at his coat, waves crash below. He says: Storm's coming." final.mp4
 ```
@@ -78,37 +93,32 @@ Or all at once, with no picking: `TWOK=1 bash scripts/studio.sh "the picture" "w
 
 ## Measured (2026-10-04, Mac Studio M5 Ultra 256 GB, macOS 27.0.1, one run each)
 
-### Standard and high quality (1.5)
+### Text to image to video (`scripts/studio.sh`), 8 second clips unless noted
 
-| Clip, generated at 672x384 and decoded at 1344x768 | Mode | Total |
-|---|---|---:|
-| 8 s (192 frames), singer | standard: Turbo 5 + base-model sound | 95 s |
-| 15 s (362 frames), singer | standard | 219 s |
-| 15 s (362 frames), singer | 3 passes + base-model sound | about 170 s |
-| 15 s (362 frames), speech | `QUALITY=high`: 20 steps | 606 s |
+| Output | Video generated at | Standard: Turbo 5 + base-model sound | Earlier: Turbo 3, adapter sound |
+|---|---|---:|---:|
+| Six scout images, 1280x736 (`scripts/scout.sh`) | | 27 s | 27 s |
+| 1344x768, 2x decoder (`X2=1`) | 672x384 | **108 s** | 67 s |
+| **2048x1152, 2x decoder (`TWOK=1`)** | 1024x576 | **299 s** | 151 s |
+| **2560x1440, 2x decoder (`QHD=1`)** | 1280x736 | **635 s** | 352 s |
+| 1344x768, native decode | 1344x768 | 709 s | 364 s |
+| 864x480, native decode | 864x480 | 174 s | 98 s |
+| 864x480, 5 s (124 frames), native decode | 864x480 | 103 s | 74 s |
 
-The audio step is 22 s of the 8 second clip and 57 s of the 15 second one. Larger canvases scale the passes as in
-the table below.
+Totals include the image (9-12 s). Where the standard time goes, 2048x1152: five passes 185 s (37 s each), the sound
+made again 60 s, decode 31 s, loading and text 12 s. At 2560x1440: passes 436 s, sound 119 s, decode 55 s. The audio
+step costs about one and a third passes at every size: one full pass to store the picture's keys and values, then 20
+light steps.
 
-### Text to image to video, earlier settings (`scripts/studio.sh`)
+`QUALITY=high` (20 steps, no adapter) took 606 s for a 15 second clip generated at 672x384, against 219 s at the
+standard setting; it has not been timed at the sizes above.
 
-These were measured with 3 Turbo passes and the adapter's own sound (`POINTS=4 REVOICE=0`). The standard setting adds
-two passes and the audio step, so expect roughly 1.7 to 2 times these video times.
-
-| Output | Video generated at | Image | Video | Total |
-|---|---|---:|---:|---:|
-| Six scout images, 1280x736 (`scripts/scout.sh`) | | 27 s | | **27 s** |
-| **2560x1440, 8 s (192 frames), 2x decoder (`QHD=1`)** | 1280x736 | 12 s | 340 s | **352 s** |
-| **2048x1152, 8 s, 2x decoder (`TWOK=1`)** | 1024x576 | 10 s | 141 s | **151 s** |
-| 1344x768, 8 s, 2x decoder (`X2=1`) | 672x384 | 11 s | 56 s | **67 s** |
-| 1344x768, 8 s, native decode | 1344x768 | 11 s | 353 s | **364 s** |
-| 864x480, 8 s, native decode | 864x480 | 10 s | 88 s | **98 s** |
-| 864x480, 5 s (124 frames), native decode | 864x480 | 14 s | 60 s | **74 s** |
+The earlier column was measured with `POINTS=4 REVOICE=0`, which still works.
 
 **Resolution costs far more than length.** The video model works on one row per 32x32 pixels of every latent frame,
 and attention compares every row with every other, so its cost grows with the square of the row count. 5 s at 864x480
 is 16,500 rows (9.5 s per pass); 8 s at 864x480 is 24,826 rows (18.3 s per pass); 8 s at 1344x768 is 60,403 rows
-(104.9 s per pass). Going from 864x480 to 1344x768 is 2.5 times the pixels and 3.6 times the time for the same length.
+(104.6 s per pass). Going from 864x480 to 1344x768 is 2.5 times the pixels and 4 times the time for the same length.
 
 **What the 2x decoder is.** A replacement head for H3's own video decoder (speach1sdef178's MiniMax-H3-X2-Detail-VAE)
 that turns the same latents into frames twice as large along each side, in the normal decode time. It is an upscale: a
@@ -118,13 +128,7 @@ high-contrast edges ([comparison](samples/x2_compare.jpg): native on top, 2x bel
 than the 1344x768 one. With `QHD=1` or `TWOK=1` the first frame is made at the size the video model starts from
 (1280x736 or 1024x576), since a larger picture would only be shrunk again.
 
-**Where the 2560x1440 time goes.** Of 352 s, the three video passes are 270 s (90 s each over 55,211 rows), the decode
-and MP4 45-55 s, loading and text encoding about 25 s. The passes are attention, which grows with the square of the
-row count; that is why 2048x1152 (34,915 rows, 33 s a pass) takes 151 s. For scale, 16:9 scouts for it:
-`WIDTH=1024 HEIGHT=576 bash scripts/scout.sh ...`.
-
-Wall time from the command to the finished files, both models loaded from disk each time. Both use the turbo adapters
-(6 image steps, 3 video passes) and the int8 kernels. In every clip the baker lifts the loaf, speaks the scripted line
+Wall time from the command to the finished files, both models loaded from disk each time, int8 kernels on. In every clip the baker lifts the loaf, speaks the scripted line
 (checked by speech recognition) and smiles. The 864x480 run was the first after install, so its 14 s includes a cold
 read of the text encoder.
 
@@ -268,8 +272,8 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
 - **Memory.** `--image-only` asks for 48 GB; the video model needs 128 GB+. Measured on 256 GB only.
-- The H3 family is proposed upstream as a draft pull request, ashhart/TensorFold#384. The Qwen-Image family is not
-  proposed upstream yet. Neither is part of a TensorFold release.
+- Proposed upstream as draft pull requests: the H3 family (ashhart/TensorFold#384), the Qwen-Image family (#393) and
+  the audio step with the 2x decoder (#405). None is part of a TensorFold release.
 
 ## Credits
 
