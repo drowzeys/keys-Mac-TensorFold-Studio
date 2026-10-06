@@ -8,7 +8,7 @@
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
 brew install python@3.11 uv ffmpeg
-bash oneshot-setup.sh               # both models (177 GB of weights) and a test clip; --image-only for 33 GB
+bash oneshot-setup.sh               # both models (182 GB of weights) and a test clip; --image-only for 33 GB
 bash scripts/studio.sh "the picture" "what happens in the clip" out.mp4   # text -> image -> video with sound
 bash scripts/scout.sh "the picture" 6 scouts/x      # six candidates + scouts/x/sheet.jpg, 27 s
 IMAGE_FILE=scouts/x/scout_s3.png QHD=1 FRAMES=192 bash scripts/studio.sh "" "what happens" final.mp4   # 2560x1440
@@ -23,8 +23,8 @@ Rules:
   Do not redistribute weights, and say so when asked to use the outputs commercially.
 - Image sizes are multiples of 16. For the studio chain both models must accept the canvas: multiples of 32, at most
   768x1344 pixels in total. Video frames must be `17n + 5` (56, 73, 90, 124, 192, 243, 362).
-- Preferred flow: scout at 1280x736, let the person pick, then `IMAGE_FILE=... TWOK=1` (2048x1152, 2.5 min) or `QHD=1` (2560x1440, 6 min) for the 2K final; `X2=1` for a
-  one-minute 1344x768 draft. `X2=1` needs WIDTH and HEIGHT in multiples of 64. 720-row canvases are not valid for the
+- Preferred flow: scout at 1280x736, let the person pick, then `IMAGE_FILE=... TWOK=1` (2048x1152, 5 min) or `QHD=1` (2560x1440, 11 min) for the 2K final; `X2=1` for a
+  two-minute 1344x768 draft (8 s clips, M5 Ultra; about 2.5 times longer on an M5 Max). `X2=1` needs WIDTH and HEIGHT in multiples of 64. 720-row canvases are not valid for the
   video model: use the QHD preset, which generates 736 rows and crops.
 - The 2x decoder is an upscale, softer than a native generation at the same size. Do not describe it as added detail.
 - Standard video = Turbo adapter, 5 passes, then the sound made again by the base model (`REVOICE=20`). Do not go back

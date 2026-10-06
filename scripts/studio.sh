@@ -17,6 +17,7 @@ IMAGE="${OUT%.*}.png"
 # QHD=1: a 2560x1440 clip. The video is generated at 1280x736, decoded at 2x and centre-cropped by 16 rows top and
 # bottom (720 is not a multiple of 32, which the video model needs). TWOK=1: a 2048x1152 clip, generated at 1024x576.
 # With either, the image is made at the size the video model starts from, since a larger one would only be shrunk.
+[ "${QHD:-0}" != 1 ] || [ "${TWOK:-0}" != 1 ] || { echo "QHD=1 and TWOK=1 are two presets; pick one" >&2; exit 2; }
 if [ "${QHD:-0}" = 1 ]; then export WIDTH=2560 HEIGHT=1472 X2=1 CROP=2560x1440 IMAGE_WIDTH="${IMAGE_WIDTH:-1280}" IMAGE_HEIGHT="${IMAGE_HEIGHT:-736}"; fi
 if [ "${TWOK:-0}" = 1 ]; then export WIDTH=2048 HEIGHT=1152 X2=1 IMAGE_WIDTH="${IMAGE_WIDTH:-1024}" IMAGE_HEIGHT="${IMAGE_HEIGHT:-576}"; fi
 export WIDTH="${WIDTH:-1344}" HEIGHT="${HEIGHT:-768}"
