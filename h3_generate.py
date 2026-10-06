@@ -20,11 +20,71 @@ import mlx.core as mx
 import numpy as np
 
 from tensorfold.families.h3 import config as h3
-from tensorfold.families.h3.lora import merge, settle
+from tensorfold.families.h3.lora import _resolve, load, settle
 from tensorfold.families.h3.packing import unpack_audio, unpatchify
 from tensorfold.families.h3.sampler import denoise
 from tensorfold.families.h3.schedule import parse_subset
 from tensorfold.families.h3.weights import int8_attention, int8_mlp, load_dit
+
+
+def prepare_dit(dit, specs, mlp: bool, qkv: bool, out: bool, fused: bool):
+    """Merge adapters and swap in the int8 kernels one block at a time; returns (adapter reports, projections changed).
+
+    `lora.merge` leaves every touched projection in float32 until the int8 swap, which doubles the transformer
+    (62 GiB) and peaks near 103 GiB, more than a 128 GB Mac can wire. Here each block is merged in float32, then
+    quantized (or settled to bfloat16) before the next, so the peak is the bfloat16 model plus one block. The
+    arithmetic is `lora.merge`'s, applied in the same order.
+    """
+
+    from types import SimpleNamespace
+
+    adapters = [(load(path, dit.config), float(strength or 1.0))
+                for path, _, strength in (spec.partition(":") for spec in specs)]
+
+    def apply(prefix):
+        # prefix "": everything outside the blocks
+        def skip(name):
+            return not name.startswith(prefix) if prefix else name.startswith("blocks.")
+
+        for adapter, strength in adapters:
+            for module, pairs in adapter.pairs.items():
+                if skip(module):
+                    continue
+                owner, leaf = _resolve(dit, module)
+                linear = getattr(owner, leaf)
+                weight = linear.weight.astype(mx.float32)
+                for a, b in pairs:
+                    if (b.shape[0], a.shape[1]) != tuple(weight.shape):
+                        raise ValueError(f"{module}: adapter is {b.shape[0]}x{a.shape[1]}, weight is {weight.shape}")
+                    weight = weight + strength * (b @ a)
+                mx.eval(weight)
+                linear.weight = weight
+            for parameter, diff in adapter.diffs.items():
+                if skip(parameter):
+                    continue
+                owner, leaf = _resolve(dit, parameter)
+                current = getattr(owner, leaf)
+                if tuple(current.shape) != tuple(diff.shape):
+                    raise ValueError(f"{parameter}: correction is {diff.shape}, parameter is {current.shape}")
+                updated = current.astype(mx.float32) + strength * diff
+                setattr(owner, leaf, updated.astype(current.dtype) if updated.ndim == 1 and leaf == "weight" else updated)
+                mx.eval(getattr(owner, leaf))
+
+    changed = rounded = 0
+    for index, block in enumerate(dit.blocks):
+        apply(f"blocks.{index}.")
+        one = SimpleNamespace(blocks=[block], config=dit.config)
+        if mlp:
+            int8_mlp(one)
+        if qkv or out:
+            changed += int8_attention(one, qkv=qkv, out=out, fused=fused)
+        rounded += settle(one)
+        mx.clear_cache()
+    apply("")
+    rounded += settle(dit)
+    reports = [{"adapter": adapter.name, "matrices": sum(1 for _ in adapter.pairs), "corrections": len(adapter.diffs)}
+               for adapter, _ in adapters]
+    return reports, changed, rounded
 
 
 def encode_text(root: Path, prompt: str, image=None):
@@ -215,15 +275,13 @@ def main():
 
     started = time.perf_counter()
     dit = load_dit(args.model_dir)
-    for spec in args.lora:
-        path, _, strength = spec.partition(":")
-        print(f"[tensorfold] {merge(dit, path, float(strength or 1.0))}", flush=True)
-    if args.int8_mlp:
-        print(f"[tensorfold] int8 MLP in {int8_mlp(dit)} blocks", flush=True)
+    reports, changed, rounded = prepare_dit(dit, args.lora, args.int8_mlp, args.int8_qkv, args.int8_out,
+                                            not args.unfused_qkv)
+    for report in reports:
+        print(f"[tensorfold] {report}", flush=True)
     if args.int8_qkv or args.int8_out:
-        changed = int8_attention(dit, qkv=args.int8_qkv, out=args.int8_out, fused=not args.unfused_qkv)
         print(f"[tensorfold] int8 attention projections: {changed}", flush=True)
-    rounded = settle(dit)
+    print(f"[tensorfold] load peak {mx.get_peak_memory() / 2**30:.1f} GiB", flush=True)
     if rounded and args.lora:
         print(f"[tensorfold] {rounded} adapted projections rounded to bfloat16 (not on an int8 kernel)", flush=True)
     load_seconds = time.perf_counter() - started
@@ -249,10 +307,7 @@ def main():
         gc.collect()
         mx.clear_cache()
         dit = load_dit(args.model_dir)  # no adapter: the audio comes from the released weights
-        if args.int8_mlp:
-            int8_mlp(dit)
-        if args.int8_qkv or args.int8_out:
-            int8_attention(dit, qkv=args.int8_qkv, out=args.int8_out, fused=not args.unfused_qkv)
+        prepare_dit(dit, [], args.int8_mlp, args.int8_qkv, args.int8_out, not args.unfused_qkv)
         latents.audio_rows = revoice(dit, text, latents, args.revoice + 1, args.seed, condition,
                                      exact=args.revoice_exact, release=not args.keep_adaln,
                                      on_step=lambda i, n, s: print(f"[tensorfold] voice {i}/{n} {s:.2f}s", flush=True))

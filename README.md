@@ -237,7 +237,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | 2x video decoder | `speach1sdef178/MiniMax-H3-X2-Detail-VAE`, `MiniMax-H3-X2-Detail-v1.safetensors` (decoder only; its reference-detail branch is not used) |
 | Borrowed at run time | mflux @ `add5164e`: Qwen-Image prompt encoder. minimax-h3-mlx @ `79190205`: H3 text encoder, first-frame encoder, audio decoder, MP4 writer |
 | MLX | 0.32.3 |
-| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; video 103 GiB during its adapter merge |
+| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; video 64 GiB (the adapter is merged and quantized one block at a time; merging the whole model first peaked at 103 GiB) |
 
 ## Notes
 
@@ -271,7 +271,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   (video) run the base models.
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
-- **Memory.** `--image-only` asks for 48 GB; the video model needs 128 GB+. Measured on 256 GB only.
+- **Memory.** `--image-only` asks for 48 GB; the video model needs 128 GB+. On a 128 GB M5 Max the 5 s 864x480 test clip peaked at 64.3 GiB with no swap and took 278 s (25 s per pass against 9.5 s on the M5 Ultra); stop any other large model first.
 - Proposed upstream as draft pull requests: the H3 family (ashhart/TensorFold#384), the Qwen-Image family (#393) and
   the audio step with the 2x decoder (#405). None is part of a TensorFold release.
 
