@@ -3,13 +3,14 @@
 # One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + MiniMax H3 (video + audio)
 #
 #   bash oneshot-setup.sh               # install, fetch both models, both turbo adapters and the 2x video decoder, render a test clip
-#   bash oneshot-setup.sh --image-only  # the image model only (33 GB instead of 177 GB), render a test image
+#   bash oneshot-setup.sh --image-only  # the image model only (33 GB instead of 182 GB), render a test image
 #   bash oneshot-setup.sh --no-render   # install and fetch only
 #   bash oneshot-setup.sh --verify      # check an existing install, no downloads, no render
 #
 # Engine payload order: this clone's ./payload -> GHCR carrier image -> git at the pinned commit.
 # Installs into its own venv ($PREFIX, default ~/.local/opt/tensorfold-studio). Touches nothing else.
-# Weights: $H3_MODEL_DIR (default ~/h3-models/MiniMax-H3, FL2VA partition, 144 GB) and
+# Weights (182 GB in all with the adapters and the 2x decoder):
+#          $H3_MODEL_DIR (default ~/h3-models/MiniMax-H3, FL2VA partition, 144 GB) and
 #          $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1, 33 GB).
 # =============================================================================
 set -euo pipefail
@@ -46,13 +47,27 @@ done
 die() { echo "FATAL: $*" >&2; exit 1; }
 ok()  { echo "  ✓ $*"; }
 step(){ echo; echo "==> $*"; }
+# complete DIR FILE...: every shard named by every *.index.json under DIR is on disk, every FILE (relative to DIR)
+# too, and no hf download was left half done. Checked offline, so a rerun never needs the network.
+complete() {
+  "$PREFIX/venv/bin/python" - "$@" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+indexes = list(root.rglob("*.index.json"))
+shards = {i.parent / f for i in indexes for f in json.load(open(i))["weight_map"].values()}
+files = {root / f for f in sys.argv[2:]}
+partial = list((root / ".cache").rglob("*.incomplete")) if (root / ".cache").is_dir() else []
+sys.exit(0 if indexes and all(f.is_file() for f in shards | files) and not partial else 1)
+PY
+}
 
 step "Preflight"
 [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ] || die "Apple silicon macOS only"
 CHIP=$(sysctl -n machdep.cpu.brand_string); RAM=$(( $(sysctl -n hw.memsize) / 1073741824 ))
 ok "$CHIP, macOS $(sw_vers -productVersion), ${RAM} GB"
 NEED=$([ "$VIDEO" = 1 ] && echo 128 || echo 48)
-[ "$RAM" -ge "$NEED" ] || die "needs ${NEED} GB+ unified memory for this install (measured on 256 GB only)"
+[ "$RAM" -ge "$NEED" ] || die "needs ${NEED} GB+ unified memory for this install (measured on 128 and 256 GB)"
 case "$CHIP" in *M5*) ok "M5: int8 kernels on the tensor units";;
   *) echo "  ! $CHIP is not M5: the int8 kernels need Metal 4 tensor operations; without them the engine runs bfloat16 and the README numbers do not apply";; esac
 export PATH="/opt/homebrew/bin:$PATH"
@@ -73,8 +88,11 @@ HAS_ENGINE='import inspect, tensorfold.families.qwen_image.sampler, mflux.models
 if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_ENGINE" 2>/dev/null; then
   [ "$MODE" = "--verify" ] && die "TensorFold with the H3 and Qwen-Image families is not installed at $PREFIX"
   mkdir -p "$HERE/payload" "$PREFIX"
-  ( cd "$HERE/payload" 2>/dev/null && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1 ) \
-    || { rm -f "$HERE"/payload/tensorfold-*.whl "$HERE"/payload/SHA256SUMS; fetch_ghcr || echo "  no carrier payload; installing from git"; }
+  # ./payload survives git pull: one that names another TensorFold commit is dropped (the 1.5 carrier and older name none,
+  # and the engine check after the install catches a stale one of those)
+  ( cd "$HERE/payload" 2>/dev/null && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1 \
+      && { [ ! -f COMMIT ] || [ "$(cat COMMIT)" = "$TF_COMMIT" ]; } ) \
+    || { rm -f "$HERE"/payload/tensorfold-*.whl "$HERE"/payload/SHA256SUMS "$HERE"/payload/COMMIT; fetch_ghcr || echo "  no carrier payload; installing from git"; }
   [ -x "$PREFIX/venv/bin/python" ] || uv venv -q -p "$(command -v python3.11)" "$PREFIX/venv"
   if ls "$HERE"/payload/tensorfold-*.whl >/dev/null 2>&1; then
     ( cd "$HERE/payload" && shasum -a 256 -c SHA256SUMS >/dev/null ) || die "carrier payload checksum mismatch"
@@ -85,8 +103,9 @@ if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_EN
   fi
   uv pip install -q --reinstall-package tensorfold -p "$PREFIX/venv/bin/python" -r "$HERE/requirements.lock" \
     "${TF_SPEC[@]}" "mflux @ git+$MFLUX_REPO@$MFLUX_COMMIT"
+  "$PREFIX/venv/bin/python" -c "$HAS_ENGINE" || die "the installed TensorFold is not the one this pack needs (${TF_COMMIT:0:8})"
 fi
-cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$PREFIX/"
+[ "$MODE" = "--verify" ] || cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$PREFIX/"
 "$PREFIX/venv/bin/python" - <<'EOF' || die "the installed TensorFold lacks the H3 or Qwen-Image family"
 import importlib.metadata as m
 import mlx.core as mx
@@ -98,13 +117,13 @@ print("  ✓ int8 tensor-unit kernels available" if mlp_int8.available() else " 
 EOF
 
 step "Qwen-Image-2.1 weights (33 GB) -> $QWEN_MODEL_DIR"
-if [ ! -f "$QWEN_MODEL_DIR/transformer/diffusion_pytorch_model-00002-of-00002.safetensors" ]; then
-  [ "$MODE" = "--verify" ] && die "no Qwen-Image-2.1 weights at $QWEN_MODEL_DIR"
+if ! complete "$QWEN_MODEL_DIR" vae/diffusion_pytorch_model.safetensors; then
+  [ "$MODE" = "--verify" ] && die "no complete Qwen-Image-2.1 weights at $QWEN_MODEL_DIR"
   echo "  Qwen-Image-2.1 is under the Qwen Research License Agreement: NON-COMMERCIAL use only. Read it first:"
   echo "  https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE"
   "$PREFIX/venv/bin/hf" download Qwen/Qwen-Image-2.1 --local-dir "$QWEN_MODEL_DIR"
 fi
-ok "Qwen-Image-2.1 at $QWEN_MODEL_DIR ($(du -sh "$QWEN_MODEL_DIR" | cut -f1))"
+ok "Qwen-Image-2.1 at $QWEN_MODEL_DIR ($(du -shL "$QWEN_MODEL_DIR" | cut -f1))"
 
 step "Image turbo adapter (Viggle turbo v0.3, rank 256, 1.36 GB)"
 mkdir -p "$PREFIX/adapters"
@@ -131,14 +150,15 @@ if [ "$VIDEO" = 1 ]; then
   ok "minimax-h3-mlx $(git -C "$PREFIX/minimax-h3-mlx" rev-parse --short HEAD)"
 
   step "MiniMax H3 weights (FL2VA partition, 144 GB) -> $H3_MODEL_DIR"
-  if [ ! -f "$H3_MODEL_DIR/FL2VA/transformer/model.safetensors.index.json" ]; then
-    [ "$MODE" = "--verify" ] && die "no H3 weights at $H3_MODEL_DIR"
+  if ! complete "$H3_MODEL_DIR" FL2VA/transformer/model.safetensors.index.json FL2VA/text_encoder/model.safetensors.index.json \
+    FL2VA/video_vae/source/model.safetensors FL2VA/audio_vae/model.safetensors; then
+    [ "$MODE" = "--verify" ] && die "no complete H3 weights at $H3_MODEL_DIR"
     echo "  MiniMax H3 is under the MiniMax H3 Community License, which limits where it may be used. Read it first:"
     echo "  https://huggingface.co/MiniMaxAI/MiniMax-H3"
     "$PREFIX/venv/bin/hf" download MiniMaxAI/MiniMax-H3 --include "FL2VA/*" --include model_index.json \
       --include LICENSE --include README.md --local-dir "$H3_MODEL_DIR"
   fi
-  ok "FL2VA at $H3_MODEL_DIR ($(du -sh "$H3_MODEL_DIR/FL2VA" | cut -f1))"
+  ok "FL2VA at $H3_MODEL_DIR ($(du -shL "$H3_MODEL_DIR/FL2VA" | cut -f1))"
 
   step "Video Turbo adapter (lightx2v v1.0, runner layout, 1.96 GB)"
   H3_ADAPTER="$PREFIX/adapters/$H3_ADAPTER_NAME"

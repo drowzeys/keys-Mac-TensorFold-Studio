@@ -1,7 +1,6 @@
-"""Render one MiniMax H3 clip with TensorFold's H3 family (copy of tools/h3_generate_dev.py at the pinned commit).
+"""Render one MiniMax H3 clip with TensorFold's H3 family (scripts/video.sh is the usual way in).
 
-    PYTHONPATH=src:<minimax-h3-mlx> <minimax-h3-mlx>/.venv/bin/python tools/h3_generate_dev.py \
-        ~/h3-models/MiniMax-H3 --prompt-file prompt.txt -o out.mp4
+    PYTHONPATH=<minimax-h3-mlx> <venv>/bin/python h3_generate.py ~/h3-models/MiniMax-H3 --prompt-file prompt.txt -o out.mp4
 
 The text encoder, the audio decoder and the MP4 writer come from minimax-h3-mlx until the family has its own;
 the transformer, sampler, adapters and video decoder are `tensorfold.families.h3`. `--parity` also runs
@@ -40,6 +39,13 @@ def prepare_dit(dit, specs, mlp: bool, qkv: bool, out: bool, fused: bool):
 
     adapters = [(load(path, dit.config), float(strength or 1.0))
                 for path, _, strength in (spec.partition(":") for spec in specs)]
+
+    blocks = len(dit.blocks)
+    for adapter, _ in adapters:
+        for name in [*adapter.pairs, *adapter.diffs]:
+            index = name.split(".")[1] if name.startswith("blocks.") else None
+            if index is not None and not (index.isdigit() and int(index) < blocks):
+                raise ValueError(f"{adapter.name}: {name} is outside the transformer's {blocks} blocks")
 
     def apply(prefix):
         # prefix "": everything outside the blocks
@@ -82,7 +88,7 @@ def prepare_dit(dit, specs, mlp: bool, qkv: bool, out: bool, fused: bool):
         mx.clear_cache()
     apply("")
     rounded += settle(dit)
-    reports = [{"adapter": adapter.name, "matrices": sum(1 for _ in adapter.pairs), "corrections": len(adapter.diffs)}
+    reports = [{"adapter": adapter.name, "projections": len(adapter.pairs), "corrections": len(adapter.diffs)}
                for adapter, _ in adapters]
     return reports, changed, rounded
 
@@ -257,6 +263,8 @@ def main():
 
     root = h3.pipeline_root(args.model_dir)
     prompt = Path(args.prompt_file).read_text() if args.prompt_file else args.prompt
+    if not prompt or not prompt.strip():
+        parser.error("give --prompt or --prompt-file")
     started = time.perf_counter()
     image = None
     if args.first_frame:

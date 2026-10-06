@@ -11,9 +11,11 @@ TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="218bfe2497ad8bf8f3d31a8c5943972244c9e9bc"
 cd "$HERE"
 mkdir -p payload
+rm -f payload/tensorfold-*.whl
 python3 -m pip wheel --no-deps -q -w payload "tensorfold @ git+$TF_REPO@$TF_COMMIT"
 cp requirements.lock h3_generate.py qwen_image_generate.py payload/
-( cd payload && shasum -a 256 tensorfold-*.whl requirements.lock h3_generate.py qwen_image_generate.py > SHA256SUMS )
+echo "$TF_COMMIT" > payload/COMMIT
+( cd payload && shasum -a 256 tensorfold-*.whl requirements.lock h3_generate.py qwen_image_generate.py COMMIT > SHA256SUMS )
 cat payload/SHA256SUMS
 if [ "${PUSH:-0}" = 1 ]; then
   docker buildx build --platform linux/arm64,linux/amd64 -f Dockerfile.ghcr -t "$IMAGE:$TAG" -t "$IMAGE:latest" --push .

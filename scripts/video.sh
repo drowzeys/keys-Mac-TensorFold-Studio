@@ -24,6 +24,9 @@ ADAPTER="${ADAPTER:-$PREFIX/adapters/lightx2v_v1.0_768p_ourlayout.safetensors}"
 if [ "$ADAPTER" = none ]; then POINTS="${POINTS:-21}"; REVOICE="${REVOICE:-0}"; else POINTS="${POINTS:-6}"; REVOICE="${REVOICE:-20}"; fi
 X2_VAE="${X2_VAE:-$PREFIX/adapters/MiniMax-H3-X2-Detail-v1.safetensors}"
 PROMPT="${1:-}"; OUT="${2:-outputs/h3.mp4}"
+[ -n "$PROMPT" ] || [ -n "${PROMPT_FILE:-}" ] || { echo "give a prompt or PROMPT_FILE" >&2; exit 2; }
+FRAMES="${FRAMES:-124}"
+[ $(((FRAMES - 5) % 17)) = 0 ] && [ "$FRAMES" -gt 5 ] || { echo "FRAMES must be 17n+5 (56, 73, 90, 124, 192, 243, 362), got $FRAMES" >&2; exit 2; }
 mkdir -p "$(dirname "$OUT")"
 export PATH="/opt/homebrew/bin:$PATH" PYTHONPATH="$PREFIX/minimax-h3-mlx"
 if [ "${X2:-0}" = 1 ]; then
@@ -34,7 +37,7 @@ if [ "${X2:-0}" = 1 ]; then
 else
   W="${WIDTH:-864}"; H="${HEIGHT:-480}"
 fi
-ARGS=("$H3_MODEL_DIR" -o "$OUT" --width "$W" --height "$H" --frames "${FRAMES:-124}"
+ARGS=("$H3_MODEL_DIR" -o "$OUT" --width "$W" --height "$H" --frames "$FRAMES"
       --seed "${SEED:-0}" --points "$POINTS" --int8-mlp --int8-qkv --int8-out)
 [ "$REVOICE" = 0 ] || ARGS+=(--revoice "$REVOICE")
 [ "${X2:-0}" != 1 ] || ARGS+=(--upscale-vae "$X2_VAE")
