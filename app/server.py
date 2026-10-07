@@ -43,7 +43,8 @@ PRESETS = {
 }
 QUALITIES = {
     "standard": ("Standard: Turbo 5 passes + base-model sound", {}),
-    "high": ("High: 20 steps, no adapter (about 3x slower)", {"QUALITY": "high"}),
+    "high": ("High: 20 steps, no adapter, fast recipe (about 1.5x slower)", {"QUALITY": "high"}),
+    "full": ("Full: plain 20 steps, no adapter (about 3x slower)", {"QUALITY": "full"}),
     "fast": ("Fast: Turbo 3 passes, adapter sound", {"POINTS": "4", "REVOICE": "0"}),
 }
 SCOUT_SIZES = {"draft": (1344, 768), "2k": (1024, 576), "qhd": (1280, 736), "small": (864, 480),
@@ -104,7 +105,7 @@ def estimate(preset: str, quality: str, seconds: int) -> int | None:
     base = MEASURED_8S.get(preset)
     if base is None:
         return None
-    scale = {"standard": 1.0, "high": 3.0, "fast": 0.58}[quality] * (seconds / 8.0) ** 1.6
+    scale = {"standard": 1.0, "high": 1.45, "full": 3.0, "fast": 0.58}[quality] * (seconds / 8.0) ** 1.6
     return int(base * scale)
 
 

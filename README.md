@@ -6,10 +6,14 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.6** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.7** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **1.7 (2026-10-07): the 20-step mode is twice as fast.** `QUALITY=high` now uses a velocity cache and attention
+> reuse after mlx-serve's fast recipe: a 10 second 1312x736 clip in 1,301 s against 2,763 s for plain 20 steps, with
+> stills that hold up beside it. `QUALITY=full` keeps the plain 20 steps.
+>
 > **Update, 1.5 (2026-10-04): a new standard setting, and the best result this pack has made.** Video now takes
 > **5 Turbo passes**, and the **sound is made again by the base model** against the finished picture. Judged by eye
 > and ear by the pack's owner on speech and singing clips: 5 passes gave the best picture among 3, 4, 5 and 6, and
@@ -192,7 +196,7 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 
 `oneshot-setup.sh` does the following:
 
-1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `218bfe24`), from the **GHCR
+1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `99fa80a3`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
@@ -242,9 +246,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.5
-# index digest sha256:2c7a90daec93560123f6d5d970ff1e27b4a8bee8ebaa02879cddfc99998cd27f (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.5 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.7
+# index digest sha256:3ffe3114dc550524ca2af97d30dee2273c613fd81f99a8c68d22f1eda657f928 (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.7 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -256,7 +260,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | Piece | Value |
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
-| Engine | TensorFold 0.6.5 (`609ca419`) + ten commits, `drowzeys/TensorFold` branch `studio` @ `218bfe2497ad8bf8f3d31a8c5943972244c9e9bc` (Apache-2.0) |
+| Engine | TensorFold 0.6.5 (`609ca419`) + ten commits, `drowzeys/TensorFold` branch `studio` @ `99fa80a32f7e61d331092064576ada72fdd2d1a4` (Apache-2.0) |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |
