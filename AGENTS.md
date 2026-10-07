@@ -1,8 +1,8 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.5` (not a runtime; TensorFold wheel + lock + render scripts)  
-**Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `218bfe24`, own venv, int8 tensor-unit kernels
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
@@ -15,6 +15,33 @@ IMAGE_FILE=scouts/x/scout_s3.png QHD=1 FRAMES=192 bash scripts/studio.sh "" "wha
 bash scripts/image.sh "a prompt" out.png
 FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4
 ```
+
+## Install for a person and build the one-click app
+
+Do these in order on the person's Mac, and report each result plainly.
+
+1. Check the machine: `uname -m` is `arm64`, `sysctl -n machdep.cpu.brand_string` names an M5-family chip (others run
+   without the int8 kernels, far slower: say so and ask before continuing), memory is 128 GB or more, and
+   `df -h ~` shows 180 GB free (250 GB with FastH3). Stop and report if memory or disk falls short.
+2. `brew install python@3.11 uv ffmpeg` (install Homebrew first only with the person's agreement).
+3. Tell the person the download sizes and licenses before starting: Qwen-Image-2.1 33 GB (Qwen Research License,
+   non-commercial), MiniMax H3 144 GB (MiniMax H3 Community License, territory limits), FastH3 70 GB (same license).
+4. `bash oneshot-setup.sh --fasth3` (drop `--fasth3` if they do not want it). It resumes if interrupted. It ends by
+   rendering `outputs/test.mp4`; confirm that file exists and plays.
+5. `bash scripts/make-app.sh` builds `~/Applications/TensorFold Studio.app`. If the models are not in the default
+   folders, export `QWEN_MODEL_DIR`, `H3_MODEL_DIR`, `FASTH3_DIR` first: the app records them. Do not set
+   `HOST=0.0.0.0` unless the person asks to reach it from other machines; there is no login.
+6. `open "$HOME/Applications/TensorFold Studio.app"`, then check `curl -s http://127.0.0.1:7870/api/state` answers.
+7. Tell the person: double-click TensorFold Studio in Applications; renders land in `~/TensorFoldStudio`; the log is
+   `~/Library/Logs/TensorFoldStudio.log`; to stop it run the app's executable with `stop`.
+
+The app is a launcher around this clone, unsigned and built locally, so Gatekeeper does not block it. Do not move
+the clone afterwards without rebuilding the app. Do not sign, notarize or redistribute the built app.
+
+FastH3 and long videos: `scripts/fast.sh` (STEPS=4|8|20, RES=480p|720p, UPSCALE=1); `ENGINE=fasth3` works with
+`studio.sh` and `FIRST_FRAME` too, though FastVideo trained it on text to video only. Videos over 15 s are chains of
+clips made by the web app's `long` job (each opens on the last frame of the one before); only an 18 s chain has been
+rendered, so do not promise the look of a 30 minute one.
 
 Web app: `bash scripts/app.sh` (http://127.0.0.1:7870; `HOST=0.0.0.0` to open it to the LAN, no login). It runs the
 same scripts through a one-at-a-time queue and stores everything under `~/TensorFoldStudio`.

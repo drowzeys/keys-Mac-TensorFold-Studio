@@ -33,6 +33,9 @@ for name in ("projects", "uploads", "renders", "scouts", "exports"):
 
 FPS = 24
 DURATIONS = {5: 124, 8: 192, 10: 243, 15: 362}  # seconds -> frames (17n + 5)
+# longer videos are chains of clips: each one opens on the last frame of the one before, and they are joined at the end
+LONG = {30: "30 s", 60: "1 min", 120: "2 min", 300: "5 min", 600: "10 min", 900: "15 min", 1800: "30 min"}
+LONGEST = max(DURATIONS)
 # name -> (label, final size, environment). Generation happens at half size where X2 is set.
 PRESETS = {
     "draft": ("Draft 1344x768 (generated at 672x384, 2x decoder)", (1344, 768), {"X2": "1"}),
@@ -110,7 +113,22 @@ def compose(fields: dict, first_frame: bool) -> str:
     return f"{LEAD}\n\n{body}" if first_frame else body
 
 
+def plan(total: int, piece: int = LONGEST) -> list[int]:
+    """Clip lengths, in seconds, that add up to at least ``total``: whole pieces, then the shortest clip that covers the rest."""
+
+    if piece not in DURATIONS:
+        raise HTTPException(400, f"a segment is one of {sorted(DURATIONS)} seconds")
+    pieces = [piece] * (total // piece)
+    rest = total - piece * len(pieces)
+    if rest > 0:
+        pieces.append(min(d for d in DURATIONS if d >= rest))
+    return pieces
+
+
 def estimate(preset: str, quality: str, seconds: int) -> int | None:
+    if seconds > LONGEST:
+        parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
+        return None if None in parts else int(sum(parts) + 2 * len(parts))
     if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
         return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
     if quality.startswith("fh"):
@@ -223,6 +241,86 @@ def export(job: dict) -> None:
 STEP = re.compile(r"\[tensorfold\] (step|voice) (\d+)/(\d+)")
 
 
+def run(job: dict, command: list[str], env: dict, label: str = "") -> bool:
+    """Run one script for ``job``, following its progress; False when the job was cancelled meanwhile."""
+
+    process = subprocess.Popen(command, cwd=PACK, env=environment(env), stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, start_new_session=True)
+    running.update(process=process, id=job["id"])
+    for line in process.stdout:
+        job["log"] = (job["log"] + line)[-20000:]
+        found = STEP.search(line)
+        if found:
+            kind, at, total = found.group(1), int(found.group(2)), int(found.group(3))
+            job["progress"] = {"stage": label + ("picture" if kind == "step" else "sound"), "at": at, "of": total}
+    code = process.wait()
+    running.update(process=None, id=None)
+    if job["status"] == "cancelled":
+        return False
+    if code:
+        raise RuntimeError(f"the script exited with status {code}")
+    return True
+
+
+def long_take(job: dict) -> bool:
+    """A video longer than one clip: render it piece by piece, each opening on the last frame of the one before, and join."""
+
+    params = job["params"]
+    total = int(params["total_seconds"])
+    pieces = plan(total, int(params.get("segment_seconds", LONGEST)))
+    beats = [line.strip() for line in params.get("beats") or [] if line.strip()]
+    folder = HOME / "renders" / job["id"]
+    folder.mkdir(parents=True, exist_ok=True)
+    image, clips = params.get("image"), []
+    for index, seconds in enumerate(pieces):
+        prompt = params["prompt"]
+        if beats:  # one line per piece says what happens in it; the last line holds for the rest
+            prompt = f"{prompt}\n\nIn this part of the video: {beats[min(index, len(beats) - 1)]}"
+        if index:
+            still = folder / f"seg{index:03d}_first.jpg"
+            last_frame(clips[-1], still)
+            image = relative(still)
+        if image and not prompt.startswith("For the target video"):
+            prompt = f"{LEAD}\n\n{prompt}"
+        target = folder / f"seg{index + 1:03d}.mp4"
+        piece = {**params, "prompt": prompt, "image": image, "seconds": seconds, "output": relative(target),
+                 "seed": int(params.get("seed", 0)) + index}
+        command, env, _ = build("video", piece, job["id"])
+        if not run(job, command, env, f"part {index + 1}/{len(pieces)} · "):
+            return False
+        if not target.is_file():
+            raise RuntimeError(f"part {index + 1} wrote no clip")
+        clips.append(target)
+        job["outputs"] = [relative(c) for c in clips]  # finished parts can be watched while the rest renders
+    # join: every part after the first repeats the frame it started from, so that frame is dropped
+    job["progress"] = {"stage": "joining", "at": len(clips), "of": len(clips)}
+    listing = folder / "parts.txt"
+    trimmed = []
+    for index, clip in enumerate(clips):
+        part = folder / f"join{index + 1:03d}.ts"
+        cut = ["-vf", "trim=start_frame=1,setpts=PTS-STARTPTS", "-af", f"atrim=start={1 / FPS},asetpts=PTS-STARTPTS"] if index else []
+        done = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(clip), *cut, "-c:v", "libx264", "-crf", "17",
+                               "-preset", "medium", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a",
+                               "256k", "-ar", "48000", "-f", "mpegts", str(part)], capture_output=True, text=True,
+                              env=environment({}))
+        if done.returncode:
+            job["log"] += done.stderr
+            raise RuntimeError("ffmpeg failed while preparing a part")
+        trimmed.append(part)
+    listing.write_text("".join(f"file '{part}'\n" for part in trimmed))
+    final = HOME / "renders" / f"{job['id']}.mp4"
+    done = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-t",
+                           str(total), "-c", "copy", "-movflags", "+faststart", str(final)], capture_output=True,
+                          text=True, env=environment({}))
+    for part in trimmed:
+        part.unlink(missing_ok=True)
+    if done.returncode:
+        job["log"] += done.stderr
+        raise RuntimeError("ffmpeg failed while joining the parts")
+    job["outputs"] = [relative(final)] + [relative(c) for c in clips]
+    return True
+
+
 def work() -> None:
     while True:
         wake.wait()
@@ -243,23 +341,13 @@ def work() -> None:
                 params["image"] = relative(still)
             if job["kind"] == "export":
                 export(job)
+            elif job["kind"] == "long":
+                if not long_take(job):
+                    continue
             else:
                 command, env, outputs = build(job["kind"], params, job["id"])
-                process = subprocess.Popen(command, cwd=PACK, env=environment(env), stdout=subprocess.PIPE,
-                                           stderr=subprocess.STDOUT, text=True, start_new_session=True)
-                running.update(process=process, id=job["id"])
-                for line in process.stdout:
-                    job["log"] = (job["log"] + line)[-20000:]
-                    found = STEP.search(line)
-                    if found:
-                        kind, at, total = found.group(1), int(found.group(2)), int(found.group(3))
-                        job["progress"] = {"stage": "picture" if kind == "step" else "sound", "at": at, "of": total}
-                code = process.wait()
-                running.update(process=None, id=None)
-                if job["status"] == "cancelled":
+                if not run(job, command, env):
                     continue
-                if code:
-                    raise RuntimeError(f"the script exited with status {code}")
                 job["outputs"] = [relative(Path(p)) for p in outputs if Path(p).is_file()]
                 if not job["outputs"]:
                     raise RuntimeError("the script finished without writing its output")
@@ -285,7 +373,7 @@ def public(job: dict) -> dict:
 @app.get("/api/state")
 def state() -> dict:
     return {"presets": {k: {"label": v[0], "size": v[1]} for k, v in PRESETS.items()},
-            "qualities": {k: v[0] for k, v in QUALITIES.items()}, "durations": DURATIONS,
+            "qualities": {k: v[0] for k, v in QUALITIES.items()}, "durations": DURATIONS, "long": LONG,
             "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip()}
 
 
@@ -304,18 +392,24 @@ def estimate_time(body: dict) -> dict:
 def submit(body: dict) -> dict:
     kind = body.get("kind")
     params = dict(body.get("params") or {})
-    if kind not in ("scout", "video", "studio", "export"):
+    if kind not in ("scout", "video", "studio", "export", "long"):
         raise HTTPException(400, "unknown job kind")
+    if kind == "long":
+        total = int(params.get("total_seconds", 0))
+        if not LONGEST < total <= max(LONG):
+            raise HTTPException(400, f"a long video is over {LONGEST} seconds and at most {max(LONG) // 60} minutes")
+        pieces = plan(total, int(params.get("segment_seconds", LONGEST)))
+        build("video", {**params, "seconds": pieces[0], "output": None}, "check")
     if kind != "export" and not (params.get("prompt") or "").strip():
         raise HTTPException(400, "a prompt is needed")
     job_id = time.strftime("%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
-    if kind != "export":
+    if kind not in ("export", "long"):
         build(kind, params, job_id)  # reject bad settings now, not when the job's turn comes
     job = {"id": job_id, "kind": kind, "status": "queued", "title": body.get("title") or kind, "params": params,
            "outputs": [], "progress": None, "error": None, "log": "", "created": time.time(), "started": None,
            "finished": None, "estimate": estimate(params.get("preset", ""), params.get("quality", "standard"),
-                                                  int(params.get("seconds", 5))) if kind in ("video", "studio")
-           else None}
+                                                  int(params.get("total_seconds") or params.get("seconds", 5)))
+           if kind in ("video", "studio", "long") else None}
     with lock:
         jobs[job_id] = job
         order.append(job_id)

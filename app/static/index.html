@@ -5,51 +5,99 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TensorFold Studio</title>
 <style>
-:root { --bg:#0e0f14; --panel:#171922; --panel2:#1e212d; --line:#2a2e3d; --text:#e6e8f0; --dim:#9aa0b4;
-  --accent:#7c8cff; --hot:#ff6b3d; --ok:#35c98f; --warn:#f2b84b; --bad:#f0647a; }
+:root { --bg:#06070c; --panel:rgba(19,22,33,.74); --panel2:rgba(30,34,50,.66); --ink:#090a11; --line:rgba(255,255,255,.085); --line2:rgba(255,255,255,.16);
+  --text:#eceef7; --dim:#8f96ad; --accent:#67e3ff; --accent2:#8f7dff; --hot:#ff7a45; --ok:#3ddc97; --warn:#f5c15c; --bad:#ff6b85;
+  --grad:linear-gradient(135deg,#67e3ff 0%,#8f7dff 100%); --grad-hot:linear-gradient(135deg,#ffb347 0%,#ff5f6d 100%);
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; --ease:cubic-bezier(.2,.7,.2,1); }
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 -apple-system,"Segoe UI",Inter,sans-serif; }
-header { display:flex; align-items:center; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
-header h1 { font-size:16px; margin:0 8px 0 0; } header .dot { width:9px; height:9px; border-radius:50%; background:var(--ok); }
-header small { color:var(--dim); margin-left:auto; }
-nav button, button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:7px 13px; cursor:pointer; font:inherit; }
-nav button.on { background:var(--accent); border-color:var(--accent); color:#0b0c12; font-weight:600; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0c12; font-weight:600; }
-button.hot { background:var(--hot); border-color:var(--hot); color:#160803; font-weight:600; }
-button:disabled { opacity:.45; cursor:default; } button.small { padding:3px 8px; font-size:12px; }
-main { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; padding:14px 16px; align-items:start; }
-section.card, aside { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
-aside { position:sticky; top:62px; max-height:calc(100vh - 76px); overflow:auto; }
-h2 { font-size:15px; margin:0 0 10px; } h3 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:14px 0 6px; }
-label { display:block; color:var(--dim); font-size:12px; margin:10px 0 4px; }
-input, select, textarea { width:100%; background:#0b0c12; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px 9px; font:inherit; }
-textarea { min-height:86px; resize:vertical; } input[type=checkbox] { width:auto; }
-.row { display:flex; gap:10px; align-items:end; flex-wrap:wrap; } .row > * { flex:1; min-width:120px; } .row > .fit { flex:0 0 auto; min-width:0; }
-.steps { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; } .steps button { flex:1; font-size:12px; white-space:nowrap; }
-.steps button.on { background:#b9a6ff; border-color:#b9a6ff; color:#12101d; font-weight:600; }
-.note { color:var(--dim); font-size:12px; margin-top:6px; } .hide { display:none !important; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
-.tile { background:var(--panel2); border:1px solid var(--line); border-radius:8px; overflow:hidden; } .tile.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
-.tile img, .tile video { width:100%; display:block; background:#000; aspect-ratio:16/9; object-fit:contain; } .tile .cap { padding:6px 8px; font-size:12px; color:var(--dim); display:flex; gap:6px; align-items:center; justify-content:space-between; }
-.pill { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11px; border:1px solid var(--line); }
-.pill.done { color:var(--ok); border-color:var(--ok); } .pill.running { color:var(--warn); border-color:var(--warn); } .pill.failed, .pill.cancelled { color:var(--bad); border-color:var(--bad); } .pill.queued { color:var(--dim); }
-.job { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; background:var(--panel2); }
-.bar { height:5px; background:#0b0c12; border-radius:4px; overflow:hidden; margin:6px 0; } .bar i { display:block; height:100%; background:var(--accent); }
-pre { background:#0b0c12; border:1px solid var(--line); border-radius:7px; padding:8px; white-space:pre-wrap; word-break:break-word; font-size:11px; max-height:220px; overflow:auto; }
-.seg { border:1px solid var(--line); border-radius:9px; padding:10px 12px; margin-bottom:10px; background:var(--panel2); }
-.seg.sel { border-color:#b9a6ff; } .seg header, .seghead { all:unset; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.strip { display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid var(--line); margin:8px 0; } .strip div { background:#2b3050; border-right:1px solid #0b0c12; font-size:11px; padding:2px 6px; overflow:hidden; white-space:nowrap; }
-video.main { width:100%; background:#000; border-radius:8px; max-height:52vh; }
-.tl { display:flex; gap:6px; overflow-x:auto; padding:8px; background:#0b0c12; border:1px solid var(--line); border-radius:8px; min-height:112px; }
-.clip { flex:0 0 190px; background:var(--panel2); border:1px solid var(--line); border-radius:7px; padding:6px; font-size:12px; } .clip.on { border-color:var(--warn); }
-.clip video { width:100%; aspect-ratio:16/9; background:#000; border-radius:4px; } .clip .row > * { min-width:0; } .clip input { padding:3px 5px; font-size:12px; }
-a { color:var(--accent); }
-@media (max-width:1000px) { main { grid-template-columns:1fr; } aside { position:static; max-height:none; } }
+html { color-scheme:dark; }
+body { margin:0; color:var(--text); font:14px/1.5 -apple-system,"SF Pro Text","Inter","Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background:radial-gradient(900px 520px at 12% -8%,rgba(103,227,255,.13),transparent 62%),radial-gradient(820px 560px at 96% 4%,rgba(143,125,255,.15),transparent 60%),var(--bg); background-attachment:fixed; }
+body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px); background-size:44px 44px;
+  mask-image:linear-gradient(to bottom,#000,transparent 70%); -webkit-mask-image:linear-gradient(to bottom,#000,transparent 70%); }
+header, main { position:relative; z-index:1; }
+header { display:flex; align-items:center; gap:16px; padding:11px 22px; border-bottom:1px solid var(--line); background:rgba(9,10,17,.72);
+  backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); position:sticky; top:0; z-index:5; }
+header h1 { font-size:15px; font-weight:650; letter-spacing:.01em; margin:0 10px 0 0; } header h1 b { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
+header .dot { width:22px; height:22px; border-radius:7px; background:var(--grad); box-shadow:0 0 18px rgba(103,227,255,.45); position:relative; flex:none; }
+header .dot::after { content:""; position:absolute; inset:6px; border-radius:3px; background:var(--ink); }
+header small { color:var(--dim); margin-left:auto; font:11.5px var(--mono); letter-spacing:.02em; }
+nav { display:flex; gap:2px; padding:3px; border:1px solid var(--line); border-radius:11px; background:rgba(255,255,255,.03); }
+button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 14px; cursor:pointer; font:inherit;
+  transition:background .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease),box-shadow .18s var(--ease); }
+button:hover:not(:disabled) { border-color:var(--line2); background:rgba(255,255,255,.07); } button:active:not(:disabled) { transform:translateY(1px); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+nav button { border:0; background:transparent; color:var(--dim); padding:6px 14px; border-radius:8px; font-weight:550; }
+nav button.on { background:rgba(255,255,255,.1); color:var(--text); box-shadow:inset 0 0 0 1px var(--line2); }
+button.primary { background:var(--grad); border-color:transparent; color:#070810; font-weight:650; }
+button.hot { background:var(--grad-hot); border-color:transparent; color:#190905; font-weight:700; padding:10px 20px; box-shadow:0 6px 24px -8px rgba(255,95,109,.7); }
+button.primary:hover:not(:disabled), button.hot:hover:not(:disabled) { filter:brightness(1.08); }
+button.primary:hover:not(:disabled) { background:var(--grad); } button.hot:hover:not(:disabled) { background:var(--grad-hot); }
+button:disabled { opacity:.4; cursor:default; box-shadow:none; } button.small { padding:3px 9px; font-size:12px; border-radius:7px; }
+main { display:grid; grid-template-columns:minmax(0,1fr) 370px; gap:18px; padding:18px 22px 40px; align-items:start; max-width:1560px; margin:0 auto; }
+section.card, aside { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 24px 60px -30px rgba(0,0,0,.8); }
+aside { position:sticky; top:68px; max-height:calc(100vh - 86px); overflow:auto; padding:16px; }
+h2 { font-size:17px; font-weight:650; letter-spacing:-.005em; margin:0 0 12px; }
+h3 { font:600 11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:18px 0 8px; }
+label { display:block; color:var(--dim); font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; margin:14px 0 6px; }
+input, select, textarea { width:100%; background:rgba(4,5,9,.6); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:9px 11px; font:inherit;
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease); }
+input:hover, select:hover, textarea:hover { border-color:var(--line2); }
+input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(103,227,255,.16); }
+input[type=number] { font-family:var(--mono); } textarea { min-height:92px; resize:vertical; line-height:1.5; } input[type=checkbox] { width:auto; accent-color:var(--accent); }
+::placeholder { color:#5b617a; }
+.row { display:flex; gap:12px; align-items:end; flex-wrap:wrap; } .row > * { flex:1; min-width:120px; } .row > .fit { flex:0 0 auto; min-width:0; }
+.steps { display:flex; gap:0; margin:-4px 0 18px; padding:4px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.025); flex-wrap:wrap; }
+.steps button { flex:1; font-size:12px; white-space:nowrap; border:0; background:transparent; color:var(--dim); border-radius:9px; padding:8px 10px; font-weight:550; }
+.steps button.on { background:var(--grad); color:#070810; font-weight:700; box-shadow:0 4px 18px -6px rgba(103,227,255,.6); }
+.note { color:var(--dim); font-size:12.5px; margin-top:8px; } .hide { display:none !important; }
+/* choice groups: one decision, every option visible */
+.choice { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.choice button { text-align:left; padding:11px 13px; border-radius:12px; background:rgba(255,255,255,.028); display:flex; flex-direction:column; gap:2px; min-height:58px; justify-content:center; position:relative; }
+.choice button b { font-weight:620; font-size:13.5px; } .choice button span { color:var(--dim); font-size:11.5px; line-height:1.35; }
+.choice button.on { border-color:transparent; background:linear-gradient(var(--ink),var(--ink)) padding-box,var(--grad) border-box; border:1px solid transparent; box-shadow:0 0 0 3px rgba(103,227,255,.09),0 10px 30px -18px rgba(103,227,255,.9); }
+.choice button.on b { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.choice button:disabled { opacity:.35; }
+.choice.tight { grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); } .choice.tight button { min-height:48px; padding:8px 11px; }
+.group { border:1px solid var(--line); border-radius:14px; padding:4px 16px 16px; margin-top:14px; background:rgba(255,255,255,.018); }
+.summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(4,5,9,.55); font:12.5px var(--mono); }
+.summary .chip { padding:3px 10px; border-radius:999px; border:1px solid var(--line2); color:var(--text); white-space:nowrap; }
+.summary .chip.k { border-color:transparent; background:var(--grad); color:#070810; font-weight:700; } .summary .eta { margin-left:auto; color:var(--accent); font-weight:600; }
+.switch { display:flex; gap:12px; align-items:center; padding:11px 13px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.028); cursor:pointer; text-transform:none; letter-spacing:0; font-size:13px; color:var(--text); font-weight:500; margin:0; min-height:48px; }
+.row .switch { height:46px; min-height:0; padding:0 13px; } input, select { height:46px; } textarea, input[type=checkbox], input[type=file], .clip input { height:auto; }
+.switch input { appearance:none; height:22px; -webkit-appearance:none; width:38px; height:22px; border-radius:999px; background:#2a2f45; border:0; position:relative; padding:0; flex:none; cursor:pointer; transition:background .2s var(--ease); }
+.switch input::after { content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#cfd3e6; transition:transform .2s var(--ease); }
+.switch input:checked { background:var(--accent2); background-image:var(--grad); } .switch input:checked::after { transform:translateX(16px); background:#070810; }
+.switch input:disabled { opacity:.4; cursor:default; } .switch small { display:block; color:var(--dim); font-size:11.5px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+.tile { background:var(--panel2); border:1px solid var(--line); border-radius:12px; overflow:hidden; transition:transform .18s var(--ease),border-color .18s var(--ease); }
+.tile .cap > :first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .tile .cap button, .tile .cap a { white-space:nowrap; flex:none; }
+.tile:hover { transform:translateY(-2px); border-color:var(--line2); } .tile.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset,0 12px 34px -18px rgba(103,227,255,.9); }
+.tile img, .tile video { width:100%; display:block; background:#000; aspect-ratio:16/9; object-fit:contain; } .tile .cap { padding:8px 10px; font-size:12px; color:var(--dim); display:flex; gap:6px; align-items:center; justify-content:space-between; }
+.pill { display:inline-block; padding:1px 9px; border-radius:20px; font:600 10.5px var(--mono); letter-spacing:.06em; text-transform:uppercase; border:1px solid var(--line); }
+.pill.done { color:var(--ok); border-color:rgba(61,220,151,.45); background:rgba(61,220,151,.08); } .pill.running { color:var(--warn); border-color:rgba(245,193,92,.45); background:rgba(245,193,92,.08); }
+.pill.failed, .pill.cancelled { color:var(--bad); border-color:rgba(255,107,133,.45); background:rgba(255,107,133,.08); } .pill.queued { color:var(--dim); }
+.job { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:9px; background:var(--panel2); }
+.bar { height:6px; background:rgba(4,5,9,.8); border-radius:6px; overflow:hidden; margin:8px 0; } .bar i { display:block; height:100%; background:var(--grad); box-shadow:0 0 12px rgba(103,227,255,.7); border-radius:6px; transition:width .5s var(--ease); }
+pre { background:rgba(4,5,9,.7); border:1px solid var(--line); border-radius:10px; padding:10px; white-space:pre-wrap; word-break:break-word; font:11px/1.5 var(--mono); max-height:220px; overflow:auto; }
+.seg { border:1px solid var(--line); border-radius:13px; padding:12px 14px; margin-bottom:10px; background:var(--panel2); }
+.seg.sel { border-color:var(--accent2); } .seg header, .seghead { all:unset; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.strip { display:flex; height:34px; border-radius:9px; overflow:hidden; border:1px solid var(--line); margin:8px 0; } .strip div { background:linear-gradient(180deg,rgba(143,125,255,.35),rgba(103,227,255,.18)); border-right:1px solid var(--ink); font-size:11px; padding:7px 8px; overflow:hidden; white-space:nowrap; }
+video.main { width:100%; background:#000; border-radius:12px; max-height:52vh; border:1px solid var(--line); }
+.tl { display:flex; gap:8px; overflow-x:auto; padding:10px; background:rgba(4,5,9,.6); border:1px solid var(--line); border-radius:12px; min-height:112px; }
+.clip { flex:0 0 190px; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:7px; font-size:12px; } .clip.on { border-color:var(--warn); }
+.clip video { width:100%; aspect-ratio:16/9; background:#000; border-radius:6px; } .clip .row > * { min-width:0; } .clip input { padding:3px 6px; font-size:12px; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:10px; border:2px solid transparent; background-clip:padding-box; }
+@media (max-width:1000px) { main { grid-template-columns:1fr; padding:14px 16px 30px; } aside { position:static; max-height:none; } header { flex-wrap:wrap; padding:10px 16px; } }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
 <header>
-  <span class="dot"></span><h1>TensorFold Studio</h1>
+  <span class="dot"></span><h1><b>TensorFold</b> Studio</h1>
   <nav id="tabs"></nav>
   <small id="ver"></small>
 </header>
@@ -73,28 +121,58 @@ const api = async (path, body, method) => { const r = await fetch(path, body ===
     { method: method || "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || data.detail || r.statusText); return data; };
 const file = path => "/files/" + path.split("/").map(encodeURIComponent).join("/");
-const mmss = s => s == null ? "" : (s >= 60 ? Math.floor(s / 60) + " min " : "") + Math.round(s % 60) + " s";
+const mmss = s => s == null ? "" : s >= 3600 ? Math.floor(s / 3600) + " h " + Math.round(s % 3600 / 60) + " min" : (s >= 60 ? Math.floor(s / 60) + " min " : "") + Math.round(s % 60) + " s";
 const put = (node, ...kids) => node.append(...kids.flat().filter(k => k != null && k !== false));
 const toast = text => { const n = el("div", { style: "position:fixed;bottom:18px;left:18px;background:#2b3050;border:1px solid var(--accent);padding:9px 14px;border-radius:8px;z-index:9" }, text); document.put(body, n); setTimeout(() => n.remove(), 3500); };
 
 let S = null, jobs = [], tab = "Create", project = null;
 const C = { step: 0, mode: "scout", preset: "draft", quality: "standard", seconds: 5, seed: 1, scene: "", action: "", camera: "",
-  dialogue: [], soundscape: "", music: "N/A", imagePrompt: "", image: null, scoutJob: null, prompt: "", job: null, count: 4, imageSize: "1344x768", imageJob: null };
-const FAST_OUTPUTS = ["small", "p960", "p720", "qhd"];
-const IMAGE_SIZES = { "1344x768": "1344x768 (16:9)", "1664x928": "1664x928 (16:9, larger)", "1024x1024": "1024x1024 (square)", "768x1344": "768x1344 (9:16)" };
-const noFrame = () => C.mode === "t2v" || C.mode === "fast";
-// the mode decides where the prompt goes: FastH3 has its own qualities and outputs, the other video modes the rest
-function modeChanged() { const fh = C.mode === "fast";
-  if (fh && !C.quality.startsWith("fh")) C.quality = "fh8";
-  if (fh && !FAST_OUTPUTS.includes(C.preset)) C.preset = "small";
-  C.prompt = ""; render(); }
-
+  dialogue: [], soundscape: "", music: "N/A", imagePrompt: "", image: null, scoutJob: null, prompt: "", job: null, count: 4, imageSize: "1344x768", imageJob: null, beats: "" };
 const field = (labelText, node) => el("div", {}, el("label", {}, labelText), node);
 const bind = (obj, key, node, after) => { const isBox = node.type === "checkbox"; if (isBox) node.checked = !!obj[key]; else node.value = obj[key] ?? "";
   node.addEventListener("input", () => { obj[key] = isBox ? node.checked : (node.type === "number" ? Number(node.value) : node.value); if (after) after(); }); return node; };
 const select = (obj, key, options, after) => { const n = el("select", {}, Object.entries(options).map(([v, t]) => el("option", { value: v }, t))); return bind(obj, key, n, after); };
 const media = (path, attrs = {}) => /\.(mp4|mov)$/i.test(path) ? el("video", { src: file(path), controls: true, preload: "metadata", ...attrs }) : el("img", { src: file(path), loading: "lazy", ...attrs });
 
+const IMAGE_SIZES = { "1344x768": "1344x768 (16:9)", "1664x928": "1664x928 (16:9, larger)", "1024x1024": "1024x1024 (square)", "768x1344": "768x1344 (9:16)" };
+Object.assign(C, { goes: "video", start: "text", engine: "fasth3", passes: "8", h3quality: "standard", res: "480p", up: false });
+const ENGINES = { fasth3: "FastH3 (FastVideo, sparse attention): fastest", h3: "MiniMax H3 (Turbo adapter or full 20 steps)" };
+const RESOLUTIONS = { "480p": "480p · 864x480", "720p": "720p · 1280x720", draft: "Draft · 1344x768, generated at 672x384 with the 2x decoder",
+  "2k": "2K · 2048x1152, generated at 1024x576 with the 2x decoder", native: "Native · 1344x768" };
+const UPSCALED = { "480p": ["p960", "1728x960"], "720p": ["qhd", "2560x1440 (2K)"] };
+const noFrame = () => C.mode === "t2v";
+const isLong = () => Number(C.seconds) > 15;
+// the explicit controls decide the mode, the quality and the output preset the server understands
+function sync() {
+  C.mode = C.goes === "image" ? "image" : { text: "t2v", scout: "scout", own: "i2v" }[C.start];
+  C.quality = C.engine === "fasth3" ? "fh" + C.passes : C.h3quality;
+  if (!UPSCALED[C.res]) C.up = false;
+  C.preset = UPSCALED[C.res] ? (C.up ? UPSCALED[C.res][0] : { "480p": "small", "720p": "p720" }[C.res]) : C.res;
+}
+function changed() { sync(); C.prompt = ""; render(); }
+// one decision shown as cards: options are value -> [title, detail]
+const choice = (obj, key, options, after, tight) => el("div", { class: "choice" + (tight ? " tight" : ""), role: "radiogroup" }, Object.entries(options).map(([v, [title, sub]]) =>
+  el("button", { type: "button", role: "radio", "aria-checked": String(obj[key]) === v ? "true" : "false", class: String(obj[key]) === v ? "on" : "", onclick: () => { obj[key] = v; if (after) after(); } }, el("b", {}, title), sub ? el("span", {}, sub) : null)));
+const PASSES = { 4: ["4 passes", "fastest, a little softer"], 8: ["8 passes", "what FastH3 was trained for"], 20: ["20 passes", "slowest, most texture"] };
+const H3Q = { standard: ["Turbo 5 + base sound", "the standard"], fast: ["Turbo 3", "quickest, adapter sound"], high: ["20 steps, fast recipe", "higher quality"], full: ["20 steps, plain", "slowest"] };
+const RES = { "480p": ["480p", "864 × 480"], "720p": ["720p", "1280 × 720"], draft: ["Draft", "1344 × 768 via 2x"], "2k": ["2K", "2048 × 1152 via 2x"], native: ["Native", "1344 × 768"] };
+function videoControls(after) {
+  const two = bind(C, "up", el("input", { type: "checkbox", disabled: !UPSCALED[C.res] }), changed);
+  return el("div", { class: "group" },
+    el("label", {}, "Video engine"), choice(C, "engine", { fasth3: ["FastH3", "FastVideo's distilled H3 on the sparse tile kernel: fastest"], h3: ["MiniMax H3", "Turbo adapter with base-model sound, or the full 20 steps"] }, changed),
+    el("label", {}, C.engine === "fasth3" ? "Passes" : "Quality"), C.engine === "fasth3" ? choice(C, "passes", PASSES, changed, true) : choice(C, "h3quality", H3Q, changed, true),
+    el("label", {}, "Resolution"), choice(C, "res", RES, changed, true),
+    el("div", { class: "row" },
+      el("div", {}, el("label", {}, "Upscale"), el("label", { class: "switch" }, two, el("span", {}, "2x upscale", el("small", {}, UPSCALED[C.res] ? "2x decoder → " + UPSCALED[C.res][1] + ", about 10 s more" : "already part of this output")))),
+      el("div", { class: "fit", style: "width:250px" }, el("label", {}, "Length"), select(C, "seconds", { ...Object.fromEntries(Object.keys(S.durations).map(k => [k, k + " s · " + S.durations[k] + " frames"])),
+        ...Object.fromEntries(Object.entries(S.long).map(([k, v]) => [k, v + " · " + Math.ceil(k / 15) + " clips chained"])) }, after)),
+      el("div", { class: "fit", style: "width:120px" }, el("label", {}, "Seed"), bind(C, "seed", el("input", { type: "number", min: 0 })))));
+}
+function summary(est) {
+  const size = S.presets[C.preset].size, engine = C.engine === "fasth3" ? "FastH3 · " + C.passes + " passes" : "MiniMax H3 · " + H3Q[C.h3quality][0];
+  return el("div", { class: "summary" }, el("span", { class: "chip k" }, { t2v: "TEXT → VIDEO", scout: "QWEN IMAGE → VIDEO", i2v: "IMAGE → VIDEO" }[C.mode]),
+    el("span", { class: "chip" }, engine), el("span", { class: "chip" }, size[0] + " × " + size[1]), el("span", { class: "chip" }, isLong() ? S.long[C.seconds] + " · " + Math.ceil(C.seconds / 15) + " × 15 s" : C.seconds + " s · " + S.durations[C.seconds] + " f"), est);
+}
 function settingsRow(obj, after, keep = {}) {
   const presets = Object.entries(S.presets).filter(([k]) => !keep.presets || keep.presets(k));
   const qualities = Object.fromEntries(Object.entries(S.qualities).filter(([k]) => !keep.qualities || keep.qualities(k)));
@@ -105,7 +183,7 @@ function settingsRow(obj, after, keep = {}) {
     el("div", { class: "fit", style: "width:110px" }, el("label", {}, "Seed"), bind(obj, "seed", el("input", { type: "number", min: 0 }))));
 }
 async function showEstimate(obj, node) { try { const r = await api("/api/estimate", { preset: obj.preset, quality: obj.quality, seconds: Number(obj.seconds) });
-  node.textContent = r.seconds ? "Estimated render time on an M5 Ultra: about " + mmss(r.seconds) + " (scaled from measured 8 s clips)." : ""; } catch { node.textContent = ""; } }
+  node.textContent = r.seconds ? "≈ " + mmss(r.seconds) + " on an M5 Ultra" : ""; } catch { node.textContent = ""; } }
 
 /* ---------- Create ---------- */
 const STEPS = ["1. Intent / Mode", "2. First frame", "3. Words / Sound", "4. Review prompt", "5. Render"];
@@ -114,15 +192,16 @@ function viewCreate() {
   const steps = el("div", { class: "steps" }, STEPS.map((name, i) => el("button", { class: i === C.step ? "on" : "", onclick: () => { C.step = i; render(); } }, name)));
   const next = el("div", { class: "row", style: "margin-top:14px" }, el("button", { class: "fit", disabled: C.step === 0, onclick: () => { C.step--; render(); } }, "Back"),
     el("span"), C.step < 4 ? el("button", { class: "primary fit", onclick: () => { C.step++; render(); } }, "Next") : null);
-  const MODES = { image: "Text → image only (Qwen-Image-2.1)", fast: "Text → video, fast (FastH3, no first frame)",
-    scout: "Text → scout images → video (pick the first frame)", i2v: "Your image → video", t2v: "Text → video (no first frame)" };
+  sync();
+  const goes = el("div", {}, el("label", {}, "The prompt goes to"), choice(C, "goes", { video: ["Video with sound", "FastH3 or MiniMax H3"], image: ["Image only", "Qwen-Image-2.1"] }, changed));
+  const picture = field("The picture: who and what is in frame, where, the light", bind(C, "scene", el("textarea", { placeholder: "A middle-aged baker in a cream shirt and green apron behind a wooden counter in a small bakery at dawn, warm window light from the left…" })));
   if (C.mode === "image") {
     // the prompt goes to the image model and stops there
     const made = C.imageJob && jobs.find(j => j.id === C.imageJob);
     const [w, h] = C.imageSize.split("x").map(Number);
-    put(body, el("h2", {}, "What are you making?"), field("Mode", select(C, "mode", MODES, modeChanged)),
-      field("The picture: who and what is in frame, where, the light", bind(C, "scene", el("textarea", { placeholder: "A middle-aged baker in a cream shirt and green apron behind a wooden counter in a small bakery at dawn, warm window light from the left…" }))),
-      el("div", { class: "row" }, field("Size", select(C, "imageSize", IMAGE_SIZES)),
+    put(body, el("h2", {}, "What are you making?"), goes, picture,
+      el("label", {}, "Size"), choice(C, "imageSize", { "1344x768": ["16:9", "1344 × 768"], "1664x928": ["16:9 large", "1664 × 928"], "1024x1024": ["Square", "1024 × 1024"], "768x1344": ["9:16", "768 × 1344"] }, render, true),
+      el("div", { class: "row" },
         el("div", { class: "fit", style: "width:120px" }, el("label", {}, "How many"), bind(C, "count", el("input", { type: "number", min: 1, max: 12 }))),
         el("div", { class: "fit", style: "width:110px" }, el("label", {}, "Seed"), bind(C, "seed", el("input", { type: "number", min: 0 })))),
       el("div", { class: "note" }, "Each image takes a few seconds after the model loads; seeds count up from the one given."),
@@ -132,22 +211,21 @@ function viewCreate() {
     if (made) { put(body, el("h3", {}, "Images"), jobCard(made));
       if (made.status === "done") put(body, el("div", { class: "grid", style: "margin-top:10px" }, made.outputs.filter(p => !p.endsWith("sheet.jpg")).map(p =>
         el("div", { class: "tile" }, media(p), el("div", { class: "cap" }, el("a", { href: file(p), download: "" }, "Download"),
-          el("a", { href: "#", onclick: e => { e.preventDefault(); C.image = p; C.mode = "i2v"; modeChanged(); } }, "animate this")))))); }
+          el("a", { href: "#", onclick: e => { e.preventDefault(); C.image = p; C.goes = "video"; C.start = "own"; C.step = 1; changed(); } }, "animate this")))))); }
     return el("section", { class: "card" }, body);
   }
   if (C.step === 0) {
-    const est = el("div", { class: "note" });
-    const fh = C.mode === "fast";
-    put(body, el("h2", {}, "What are you making?"),
-      field("Mode", select(C, "mode", MODES, modeChanged)),
-      fh ? el("div", { class: "note" }, "The prompt goes straight to FastH3: no image step, sound included. Choose 4, 8 or 20 passes under Quality. To start from a Qwen image instead, pick a scout mode and a FastH3 quality.") : null,
-      field("The picture: who and what is in frame, where, the light", bind(C, "scene", el("textarea", { placeholder: "A middle-aged baker in a cream shirt and green apron behind a wooden counter in a small bakery at dawn, warm window light from the left…" }))),
+    const est = el("span", { class: "eta" });
+    put(body, el("h2", {}, "What are you making?"), goes,
+      el("label", {}, "The clip starts from"), choice(C, "start", { text: ["Text only", "no first frame"], scout: ["A Qwen scout image", "make several, pick one"], own: ["Your own image", "upload a picture"] }, changed),
+      videoControls(() => { render(); }), summary(est), picture,
       field("What happens in the clip", bind(C, "action", el("textarea", { placeholder: "He lifts the loaf with both hands, sets it down, looks at the camera and smiles." }))),
       field("Camera (optional)", bind(C, "camera", el("input", { placeholder: "The camera slowly pushes in throughout the single continuous shot." }))),
-      settingsRow(C, () => showEstimate(C, est), { qualities: k => !fh || k.startsWith("fh"), presets: k => !fh || FAST_OUTPUTS.includes(k) }), est);
+      isLong() ? field("Story beats (optional): one line per 15 s clip, in order; the last line holds for the rest", bind(C, "beats", el("textarea", { placeholder: "He rides down the chute.\nHe stops at the river and looks back.\nHe wades across carrying the bike." }))) : null,
+      isLong() ? el("div", { class: "note" }, "The model makes at most 15 s at a time, so this is rendered as " + Math.ceil(C.seconds / 15) + " clips, each opening on the last frame of the one before, then joined. Finished clips appear in the queue as they land. Expect the look to drift over many clips; beats help it stay on a story.") : null);
     showEstimate(C, est);
   } else if (C.step === 1) {
-    if (noFrame()) put(body, el("h2", {}, "First frame"), el("div", { class: "note" }, "Text to video has no first frame. Switch the mode in step 1 to start from an image."));
+    if (noFrame()) put(body, el("h2", {}, "First frame"), el("div", { class: "note" }, "Text to video has no first frame. Change “The clip starts from” in step 1 to start from an image."));
     else {
       const up = el("input", { type: "file", accept: "image/*", onchange: async () => { const data = new FormData(); data.append("file", up.files[0]);
         const r = await fetch("/api/upload", { method: "POST", body: data }); const j = await r.json(); if (j.path) { C.image = j.path; render(); } else toast(j.error || "upload failed"); } });
@@ -163,6 +241,7 @@ function viewCreate() {
         if (scout && scout.status === "done") put(body, el("div", { class: "grid", style: "margin-top:10px" }, scout.outputs.filter(p => !p.endsWith("sheet.jpg")).map(p =>
           el("div", { class: "tile" + (C.image === p ? " on" : ""), onclick: () => { C.image = p; render(); } }, media(p), el("div", { class: "cap" }, p.split("/").pop(), C.image === p ? "✓ selected" : "pick")))));
       } else put(body, field("Upload an image", up));
+      if (C.mode !== "scout" && C.image && C.image.startsWith("scouts/")) put(body, el("div", { class: "note" }, "Using the image you chose to animate."));
       if (C.image) put(body, el("h3", {}, "Selected first frame"), el("div", { style: "max-width:420px" }, media(C.image, { style: "width:100%;border-radius:8px" })),
         el("div", { class: "note" }, "The image is stretched onto the clip's canvas, so match its aspect ratio (16:9 for the presets here)."));
     }
@@ -185,10 +264,12 @@ function viewCreate() {
     const est = el("div", { class: "note" }); showEstimate(C, est);
     const job = C.job && jobs.find(j => j.id === C.job);
     const ready = C.prompt.trim() && (noFrame() || C.image);
-    put(body, el("h2", {}, "Render"), el("div", { class: "note" }, S.presets[C.preset].label + " · " + S.qualities[C.quality] + " · " + C.seconds + " s · seed " + C.seed), est,
+    put(body, el("h2", {}, "Render"), el("div", { class: "note" }, S.presets[C.preset].label + " · " + S.qualities[C.quality] + " · " + (isLong() ? S.long[C.seconds] : C.seconds + " s") + " · seed " + C.seed), est,
       !ready ? el("div", { class: "note", style: "color:var(--warn)" }, C.prompt.trim() ? "Pick or upload a first frame in step 2." : "Open step 4 once to build the prompt.") : null,
       el("div", { class: "row", style: "margin-top:10px" }, el("button", { class: "hot fit", disabled: !ready, onclick: async () => { try {
-        const j = await api("/api/jobs", { kind: "video", title: (C.action || C.scene || "Clip").slice(0, 48), params: { prompt: C.prompt, image: noFrame() ? null : C.image, preset: C.preset, quality: C.quality, seconds: Number(C.seconds), seed: C.seed } });
+        const base = { prompt: C.prompt, image: noFrame() ? null : C.image, preset: C.preset, quality: C.quality, seed: C.seed };
+        const j = await api("/api/jobs", isLong() ? { kind: "long", title: S.long[C.seconds] + ": " + (C.action || C.scene || "Video").slice(0, 40), params: { ...base, total_seconds: Number(C.seconds), beats: (C.beats || "").split("\n") } }
+          : { kind: "video", title: (C.action || C.scene || "Clip").slice(0, 48), params: { ...base, seconds: Number(C.seconds) } });
         C.job = j.id; await poll(); render(); } catch (e) { toast(e.message); } } }, "Queue this clip"), el("span")));
     if (job) { put(body, el("h3", {}, "This clip"), jobCard(job));
       if (job.status === "done") put(body, el("video", { class: "main", src: file(job.outputs[0]), controls: true }),
@@ -286,7 +367,7 @@ function viewEditor() {
 function viewLibrary() { const box = el("section", { class: "card" }, el("h2", {}, "Library"));
   api("/api/library").then(list => put(box, el("div", { class: "note" }, list.length + " files. Click a path to copy it."), el("div", { class: "grid", style: "margin-top:10px" }, list.map(m =>
     el("div", { class: "tile" }, media(m.path), el("div", { class: "cap" }, el("span", { style: "cursor:pointer", title: m.path, onclick: () => { navigator.clipboard?.writeText(m.path); toast("Copied " + m.path); } }, m.path.slice(-26)),
-      m.kind === "video" ? el("button", { class: "small", onclick: () => addToTimeline(m.path) }, "+ timeline") : el("button", { class: "small", onclick: () => { C.image = m.path; C.mode = "i2v"; C.step = 1; tab = "Create"; render(); } }, "use")))))));
+      m.kind === "video" ? el("button", { class: "small", onclick: () => addToTimeline(m.path) }, "+ timeline") : el("button", { class: "small", onclick: () => { C.image = m.path; C.goes = "video"; C.start = "own"; C.step = 1; tab = "Create"; render(); } }, "use")))))));
   return box; }
 
 /* ---------- Queue ---------- */
@@ -306,6 +387,8 @@ async function poll() { try { jobs = await api("/api/jobs"); } catch { return; }
 function render() { $("#tabs").replaceChildren(...["Create", "Production", "Editor", "Library"].map(t => el("button", { class: t === tab ? "on" : "", onclick: () => { tab = t; history.replaceState(null, "", "#" + t); render(); } }, t)));
   $("#view").replaceChildren({ Create: viewCreate, Production: viewProduction, Editor: viewEditor, Library: viewLibrary }[tab]()); }
 (async () => { const want = decodeURIComponent(location.hash.slice(1)); if (["Create", "Production", "Editor", "Library"].includes(want)) tab = want;
+  // links can preset the Create form: ?goes=image, ?engine=h3&res=720p&up=1&step=4 ...
+  for (const [k, v] of new URLSearchParams(location.search)) if (k in C && k !== "mode") C[k] = k === "up" ? v === "1" : (k === "step" || k === "count" ? Number(v) : v);
   S = await api("/api/state"); $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
 </script>
 </body>

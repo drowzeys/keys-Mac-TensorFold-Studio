@@ -6,10 +6,15 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.8** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.9** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **1.9 (2026-10-07): a restyled web app with every choice on one screen, a one-click Mac app, and long videos.**
+> Pick where the prompt goes (video or image only), the engine, passes, resolution, 2x upscale and a length from 5 s
+> to 30 min (chained 15 s clips); `bash scripts/make-app.sh` builds a double-clickable app. See
+> [Install](#install-and-the-one-click-app) and [Using the studio](#using-the-studio).
+>
 > **1.8 (2026-10-07): FastH3 text to video, 4, 8 or 20 passes, at 480p or 720p with an optional 2x decoder.**
 > FastVideo's distilled FastH3 8-Step V2 now runs on a TensorFold tile-sparse attention kernel for the M5 tensor
 > units: a 5 second 480p clip with sound in **51 s** (4 passes) or **78 s** (8), 720p in 112 s or 192 s, and 2K
@@ -26,32 +31,107 @@ few-step adapters for both · a 2x video decoder for 2K finals
 > the base-model sound fixed what was wrong with the adapter's (harsh, echo-like, thin). A 15 second clip takes 219 s
 > this way against 606 s for the full 20 steps, which remain one switch away: `QUALITY=high`.
 
-## The web app (new in 1.6)
+## Install, and the one-click app
+
+Needs an Apple-silicon Mac with an M5-family chip for the fast path, 128 GB of memory or more for video, and about
+180 GB of disk (250 GB with FastH3). Measured on a Mac Studio M5 Ultra with 256 GB only.
 
 ```bash
-bash scripts/app.sh                 # http://127.0.0.1:7870
-HOST=0.0.0.0 bash scripts/app.sh    # reachable from other machines on your network
+brew install python@3.11 uv ffmpeg
+git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
+cd keys-Mac-TensorFold-Studio
+bash oneshot-setup.sh --fasth3      # engine, both models, adapters, 2x decoder, FastH3; renders a test clip at the end
+bash scripts/make-app.sh            # builds ~/Applications/TensorFold Studio.app
 ```
 
-![Create wizard](samples/app_create.png)
+Then **double-click TensorFold Studio** in `~/Applications` (drag it to the Dock if you like). It starts the studio
+if it is not running and opens it in your browser; double-click again to come back to it. Without the app:
+`bash scripts/app.sh`, then open http://127.0.0.1:7870.
 
-- **Create.** A five-step wizard: what you are making, the first frame (Qwen scouts to pick from, or your own
-  image), words and sound, a review of the exact three-part prompt MiniMax H3 will receive, then render.
-- **Production.** A project of segments for longer videos. A segment can open on the last frame of the one before,
-  so shots run on from each other; one button renders every segment not yet done.
-- **Editor.** A timeline with in and out trims, a preview of the sequence, and export to one file.
-- **Library** and a **Queue** that is always in view: progress by pass, a time estimate, cancel, logs.
+**Or hand it to your coding agent.** Paste this:
 
-![Production board](samples/app_production.png) ![Clip editor](samples/app_editor.png)
+> Clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio and follow its AGENTS.md section "Install for a
+> person and build the one-click app". Tell me before any large download starts and when the app is ready.
 
-It drives the same scripts as the command line, one job at a time, and keeps projects, uploads and renders under
-`~/TensorFoldStudio`. Checked end to end on the Mac: two scouts (16 s), a 5 second clip from one of them (65 s), a
-second clip continuing from the first one's last frame (38 s on the fast setting) and an export of both.
+Leave out `--fasth3` to skip its 70 GB (the FastH3 engine is then unavailable); `--image-only` installs the image
+model alone (33 GB). The app keeps the clone where it is: rebuild it with `make-app.sh` if you move the folder. To
+stop the server: `"$HOME/Applications/TensorFold Studio.app/Contents/MacOS/TensorFoldStudio" stop`. There is **no
+login**, and by default it listens on this Mac only; `HOST=0.0.0.0 bash scripts/make-app.sh` opens it to your
+network, which you should do only on a network you trust.
 
-What it is not: the editor has one video track with trims and ordering only (no transforms, text, transitions or
-audio mixing), there is no assisted prompt writing, and there is **no login**, so open it to a network only if you
-trust that network. The workflow is modelled on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no
-code is shared with it.
+## Using the studio
+
+![Create: text to video with FastH3](samples/ui_create_fasth3.png)
+
+Step 1 of **Create** is where every choice lives. Pick one card in each row; the bar under them shows what will run
+and roughly how long it takes.
+
+| Choice | What it does |
+|---|---|
+| **The prompt goes to** | *Video with sound*, or *Image only*: Qwen-Image-2.1 makes the pictures and stops there. |
+| **The clip starts from** | *Text only*; *a Qwen scout image* (step 2 makes several, you pick one); or *your own image* (step 2 uploads it). |
+| **Video engine** | *FastH3*: fastest. *MiniMax H3*: the Turbo adapter with the sound made again by the base model, or the full 20 steps. |
+| **Passes** (FastH3) | 4 (fastest, a little softer), 8 (what it was trained for), 20 (slowest, most texture). |
+| **Quality** (MiniMax H3) | Turbo 5 + base sound (the standard), Turbo 3, 20 steps with the fast recipe, or plain 20 steps. |
+| **Resolution** | 480p (864x480), 720p (1280x720), or the fixed outputs Draft, 2K 2048x1152 and Native 1344x768. |
+| **2x upscale** | For 480p and 720p: the 2x decoder turns 480p into 1728x960 and 720p into 2560x1440, for about 10 s more. |
+| **Length** | 5, 8, 10 or 15 s as one clip; 30 s to 30 min as a chain of clips (below). |
+| **Seed** | Same seed and settings give the same clip. |
+
+Then write the picture, what happens, and optionally the camera move. Steps 3 to 5: add spoken or sung lines and
+the soundscape, review the exact prompt the model will receive (edit it freely), and queue the render. The **Queue**
+on the right shows progress by pass, a time estimate, the log, and a cancel button.
+
+### Image only
+
+![Create: image only](samples/ui_create_image.png)
+
+Choose *Image only*, describe the picture, pick a size and how many takes. Each image has **Download** and
+**animate this**, which carries it into a video as the first frame.
+
+### Qwen image, then video
+
+![Create: Qwen scout to video](samples/ui_create_qwen_h3.png)
+
+Choose *A Qwen scout image*. Step 2 makes as many candidates as you ask for (six take about half a minute) at the
+size the video model starts from; click the one you want. Either engine animates it. With FastH3 this is an
+untrained use that worked in our one test (see [FastH3](#fasth3-new-in-18)).
+
+### Long videos, up to 30 minutes
+
+![Create: a 30 minute chain](samples/ui_create_long.png)
+
+The model makes at most 15 s at a time, so anything longer is a **chain**: each 15 s clip opens on the last frame
+of the one before, and the clips are joined into one file (the repeated frame at each join is dropped). Pick a
+length from 30 s to 30 min. **Story beats** are optional, one line per clip, saying what happens in that part;
+without them every clip gets the same prompt. Finished clips can be watched from the queue while the rest render.
+
+- Checked: an 18 s chain of two clips (FastH3, 4 passes, 480p) in 183 s; the join is not visible in stills and the
+  second clip followed its own beat. **Nothing longer has been rendered.** The times shown for long lengths are
+  extrapolated from 5 s clips: about 7 hours for 30 minutes at 480p with 4 passes, about 11 hours with 8.
+- Expect drift: each clip only sees one frame of the last, so faces, clothes and light can wander over many clips,
+  and sound does not carry across a join. For a planned story with different shots, use Production instead.
+
+### Production, Editor, Library
+
+![Production board](samples/ui_production.png)
+
+**Production** is for a video planned shot by shot: a project of segments, each with its own scene, action, line and
+length. A segment can open on the last frame of the one before; one button renders every segment not yet done.
+
+![Editor](samples/ui_editor.png)
+
+**Editor** is a single-track timeline: order the clips, set in and out points, preview the sequence, export one file.
+
+![Library](samples/ui_library.png)
+
+**Library** lists every render, scout and export; *use* makes an image the first frame of a new clip, *+ timeline*
+sends a clip to the editor.
+
+The app drives the same scripts as the command line, one job at a time, and keeps projects, uploads and renders
+under `~/TensorFoldStudio`. What it is not: the editor has one video track with trims and ordering only (no
+transforms, text, transitions or audio mixing), and there is no assisted prompt writing. The workflow is modelled
+on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no code is shared with it.
 
 ## FastH3 (new in 1.8)
 
@@ -69,9 +149,7 @@ RES=720p UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4   # 720p generated, 2
 ENGINE=fasth3 STEPS=8 WIDTH=864 HEIGHT=480 bash scripts/studio.sh "the picture" "what happens" out.mp4
 ```
 
-In the web app, step 1 asks where the prompt goes: **image only** (Qwen-Image-2.1, any number of takes, with
-"animate this" on each), **text to video, fast** (FastH3), or the image-to-video modes, where the three "FastH3"
-entries under Quality animate a scout or your own image.
+In the web app FastH3 is the first card under **Video engine**, with Passes, Resolution and 2x upscale beside it.
 
 Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), 5 second clips of 124 frames with sound, one run each,
 whole command including model load and decode:
