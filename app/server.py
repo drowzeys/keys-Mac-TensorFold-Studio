@@ -48,15 +48,15 @@ QUALITIES = {
     "high": ("High: 20 steps, no adapter, fast recipe (about 1.5x slower)", {"QUALITY": "high"}),
     "full": ("Full: plain 20 steps, no adapter (about 3x slower)", {"QUALITY": "full"}),
     "fast": ("Fast: Turbo 3 passes, adapter sound", {"POINTS": "4", "REVOICE": "0"}),
-    "fh8": ("FastH3: 8 passes, sparse attention (text to video only)", {"ENGINE": "fasth3", "STEPS": "8"}),
-    "fh4": ("FastH3: 4 passes, fastest and softer (text to video only)", {"ENGINE": "fasth3", "STEPS": "4"}),
-    "fh20": ("FastH3: 20 passes, most texture (text to video only)", {"ENGINE": "fasth3", "STEPS": "20"}),
+    "fh8": ("FastH3: 8 passes, sparse attention", {"ENGINE": "fasth3", "STEPS": "8"}),
+    "fh4": ("FastH3: 4 passes, fastest and softer", {"ENGINE": "fasth3", "STEPS": "4"}),
+    "fh20": ("FastH3: 20 passes, most texture", {"ENGINE": "fasth3", "STEPS": "20"}),
 }
 SCOUT_SIZES = {"draft": (1344, 768), "2k": (1024, 576), "qhd": (1280, 736), "small": (864, 480),
                "native": (1344, 768), "p720": (1280, 736), "p960": (864, 480)}
 # measured on a Mac Studio M5 Ultra, 8 second clips, standard quality, image step included (README)
 MEASURED_8S = {"draft": 108, "2k": 299, "qhd": 635, "small": 174, "native": 709}
-# FastH3, 5 second clips, measured on the same machine: quality -> preset -> seconds
+# FastH3, 5 second text-to-video clips, measured on the same machine: quality -> preset -> seconds
 FASTH3_5S = {"fh4": {"small": 51, "p960": 61, "p720": 112, "qhd": 123},
              "fh8": {"small": 78, "p960": 88, "p720": 192, "qhd": 203},
              "fh20": {"small": 174, "p960": 184, "p720": 434, "qhd": 445}}
@@ -140,6 +140,10 @@ def build(kind: str, params: dict, job_id: str) -> tuple[list[str], dict, list[s
         count = max(1, min(int(params.get("count", 4)), 12))
         # a scout is made at the size the video model will start from (the draft keeps a full 1344x768 still)
         width, height = SCOUT_SIZES.get(params.get("preset", "2k"), (1024, 576))
+        if params.get("width") and params.get("height"):  # an image for its own sake, at the size asked for
+            width, height = int(params["width"]), int(params["height"])
+            if width % 16 or height % 16 or not (256 <= width <= 2048 and 256 <= height <= 2048):
+                raise HTTPException(400, "image sides are multiples of 16 between 256 and 2048")
         env = {"SEED": seed, "WIDTH": width, "HEIGHT": height}
         first = int(seed)
         outputs = [str(folder / f"scout_s{first + i}.png") for i in range(count)] + [str(folder / "sheet.jpg")]
@@ -157,10 +161,6 @@ def build(kind: str, params: dict, job_id: str) -> tuple[list[str], dict, list[s
     env = {"SEED": seed, "FRAMES": DURATIONS[seconds], **PRESETS[preset][2], **QUALITIES[quality][1]}
     prompt = params["prompt"]
     image = params.get("image")
-    if "ENGINE" in env and (image or kind == "studio" or params.get("first_frame_from")):
-        raise HTTPException(400, "FastH3 is text to video only: choose text to video, or another quality")
-    if "ENGINE" in env and preset not in FASTH3_5S[quality]:
-        raise HTTPException(400, "FastH3 outputs here are Small 864x480, 960p (2x), 720p and 2K 2560x1440 (2x)")
     if kind == "video":  # text to video, or from an image the user already has
         if image:
             return (["bash", str(scripts / "studio.sh"), "", prompt, str(target)],
@@ -309,7 +309,7 @@ def submit(body: dict) -> dict:
     if kind != "export" and not (params.get("prompt") or "").strip():
         raise HTTPException(400, "a prompt is needed")
     job_id = time.strftime("%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
-    if kind not in ("export", "scout"):
+    if kind != "export":
         build(kind, params, job_id)  # reject bad settings now, not when the job's turn comes
     job = {"id": job_id, "kind": kind, "status": "queued", "title": body.get("title") or kind, "params": params,
            "outputs": [], "progress": None, "error": None, "log": "", "created": time.time(), "started": None,

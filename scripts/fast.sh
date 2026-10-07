@@ -7,7 +7,9 @@
 #   RES=720p UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4   # 720p generated, 2x decoder -> 2560x1440 (2K)
 # Environment: STEPS (4, 8 or 20; default 8: what the checkpoint was trained for), RES (480p or 720p), UPSCALE (1 for
 # the 2x decoder), FRAMES (17n+5; 124 is 5 s), SEED, PROMPT_FILE, FASTH3_DIR, and what scripts/video.sh takes.
-# There is no image step: FastH3 does not take a first frame. Needs `bash oneshot-setup.sh --fasth3` once (70 GB).
+# FIRST_FRAME=image.png starts the clip from an image; for Qwen image -> FastH3 video in one go use
+#   ENGINE=fasth3 STEPS=8 WIDTH=864 HEIGHT=480 bash scripts/studio.sh "the picture" "what happens" out.mp4
+# Needs `bash oneshot-setup.sh --fasth3` once (70 GB).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${STEPS:=8}" in 4|8|20) ;; *) echo "STEPS is 4, 8 or 20, got $STEPS" >&2; exit 2;; esac

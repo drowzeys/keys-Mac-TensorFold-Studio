@@ -14,7 +14,7 @@ few-step adapters for both · a 2x video decoder for 2K finals
 > FastVideo's distilled FastH3 8-Step V2 now runs on a TensorFold tile-sparse attention kernel for the M5 tensor
 > units: a 5 second 480p clip with sound in **51 s** (4 passes) or **78 s** (8), 720p in 112 s or 192 s, and 2K
 > (2560x1440, through the 2x decoder) in 203 s. `bash scripts/fast.sh "a prompt" out.mp4`; see
-> [FastH3 text to video](#fasth3-text-to-video-new-in-18). Text to video only: FastH3 does not take a first frame.
+> [FastH3](#fasth3-new-in-18). It also animates a Qwen-Image first frame: image and 5 second 480p clip in 103 s.
 >
 > **1.7 (2026-10-07): the 20-step mode is twice as fast.** `QUALITY=high` now uses a velocity cache and attention
 > reuse after mlx-serve's fast recipe: a 10 second 1312x736 clip in 1,301 s against 2,763 s for plain 20 steps, with
@@ -53,7 +53,7 @@ audio mixing), there is no assisted prompt writing, and there is **no login**, s
 trust that network. The workflow is modelled on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no
 code is shared with it.
 
-## FastH3 text to video (new in 1.8)
+## FastH3 (new in 1.8)
 
 **Credit first: FastVideo / Hao AI Lab** made FastH3 (the distilled weights and the sparse-attention routing they
 were trained with), on **MiniMax's** H3. What this pack adds is the attention kernel that makes it fast on a Mac.
@@ -65,10 +65,13 @@ STEPS=4 bash scripts/fast.sh "a prompt" out.mp4              # 4, 8 or 20 passes
 RES=720p bash scripts/fast.sh "a prompt" out.mp4             # 1280x720
 UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4            # 480p generated, 2x decoder: 1728x960
 RES=720p UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4   # 720p generated, 2x decoder: 2560x1440 (2K)
+# Qwen-Image-2.1 makes the first frame, FastH3 animates it (all the studio.sh presets work: X2=1, TWOK=1, QHD=1)
+ENGINE=fasth3 STEPS=8 WIDTH=864 HEIGHT=480 bash scripts/studio.sh "the picture" "what happens" out.mp4
 ```
 
-In the web app these are the three "FastH3" entries under Quality, with the outputs Small 864x480, 960p, 720p and
-2K 2560x1440; step 2 must be set to text to video.
+In the web app, step 1 asks where the prompt goes: **image only** (Qwen-Image-2.1, any number of takes, with
+"animate this" on each), **text to video, fast** (FastH3), or the image-to-video modes, where the three "FastH3"
+entries under Quality animate a scout or your own image.
 
 Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), 5 second clips of 124 frames with sound, one run each,
 whole command including model load and decode:
@@ -94,6 +97,9 @@ frames) takes 478 s at 8 passes, against 2,183 s with FastVideo's own Metal kern
   key tiles, read in place, with int8 scores and values. At 69K rows a block takes 0.52 s against 1.93 s for dense
   attention. The int8 scores pick a few different tiles than FastVideo's float reference would, so details differ
   from its output (cosine 0.9999 on random inputs; not a bit-exact port).
+- **Image to video works, though FastVideo trained FastH3 on text to video only.** One test (the baker prompts,
+  864x480, 8 passes): the clip opens on the Qwen image, keeps the face and follows the prompt; image 9 s, video
+  94 s. The first-frame rows join the rows every video tile always attends to. Not tested widely.
 - The sound is FastH3's own; the base-model audio step is not applied here.
 - FastH3 weights are a derivative of MiniMax H3 under the MiniMax H3 Community License.
 

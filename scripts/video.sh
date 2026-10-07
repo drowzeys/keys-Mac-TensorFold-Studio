@@ -7,7 +7,7 @@
 #   QUALITY=high bash scripts/video.sh "a prompt" out.mp4               # 20 steps, no adapter, fast recipe (QUALITY=full for plain)
 #   FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4   # image to video
 #   X2=1 WIDTH=1344 HEIGHT=768 bash scripts/video.sh "a prompt" out.mp4   # generate at 672x384, decode at 2x
-#   ENGINE=fasth3 STEPS=8 bash scripts/video.sh "a prompt" out.mp4       # FastH3 (text to video only); see scripts/fast.sh
+#   ENGINE=fasth3 STEPS=8 bash scripts/video.sh "a prompt" out.mp4       # FastH3; see scripts/fast.sh
 # Environment: PREFIX, H3_MODEL_DIR, ADAPTER (a file, or none), FIRST_FRAME (an image the clip starts from; it is
 # stretched onto the canvas, so match its aspect ratio), WIDTH, HEIGHT, FRAMES (17n+5), SEED,
 # QUALITY (standard, high or full), POINTS (sigma points, one more than the passes: default 6 with the adapter, 21
@@ -16,7 +16,8 @@
 # 3 in the model; lower values add bass but roughen speech), EXTRA (extra flags for h3_generate.py).
 # ENGINE=fasth3 swaps the transformer for FastVideo's distilled FastH3 ($FASTH3_DIR, fetched by
 # `oneshot-setup.sh --fasth3`) with its sparse attention on TensorFold's tile kernel. STEPS is the number of passes:
-# 8 is what the checkpoint was trained for, 4 is faster and softer, 20 slower with more texture. Text to video only.
+# 8 is what the checkpoint was trained for, 4 is faster and softer, 20 slower with more texture. FIRST_FRAME works
+# too, though FastVideo trained FastH3 on text to video only.
 # X2=1 makes WIDTH x HEIGHT the size of the finished clip: the model generates at half of each and the 2x decoder
 # ($X2_VAE) doubles it, so both must be multiples of 64 (default 1344x768). CROP=WxH centre-crops the frames before the clip is written.
 set -euo pipefail
@@ -29,7 +30,6 @@ ENGINE="${ENGINE:-h3}"; STEPS="${STEPS:-8}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 if [ "$ENGINE" = fasth3 ]; then
   ADAPTER=none; RECIPE=""
-  [ -z "${FIRST_FRAME:-}" ] || { echo "FastH3 is text to video only: it cannot start from an image" >&2; exit 2; }
   [ -f "$FASTH3_DIR/fastvideo_inference.json" ] || { echo "no FastH3 checkpoint at $FASTH3_DIR (run oneshot-setup.sh --fasth3, or set FASTH3_DIR)" >&2; exit 2; }
   case "$STEPS" in ''|*[!0-9]*|0) echo "STEPS must be a positive number of passes, got $STEPS" >&2; exit 2;; esac
 fi
