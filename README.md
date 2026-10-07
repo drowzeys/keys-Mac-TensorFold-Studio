@@ -1,5 +1,9 @@
 # keys-Mac-TensorFold-Studio (MiniMax H3 + Qwen-Image-2.1)
 
+[![TensorFold Studio: Qwen-Image 2.1, MiniMax H3 and FastH3 on Apple silicon](samples/banner.jpg)](https://github.com/drowzeys/keys-Mac-TensorFold-Studio)
+
+*Banner art made with this studio's own Qwen-Image-2.1 step (1664x928, seed 24); the lettering was set afterwards.*
+
 **Thank you to everyone this stands on:** the Qwen team at Alibaba (Qwen-Image-2.1, Qwen3-VL), the MiniMax team
 (MiniMax H3), Ash Hart and the TensorFold contributors, antirez (h3.c), RobZombAI (H3MLX), mrbizarro (minimax-h3-mlx /
 Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo adapter), speach1sdef178 (the 2x video
