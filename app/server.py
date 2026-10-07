@@ -40,17 +40,26 @@ PRESETS = {
     "qhd": ("2K 2560x1440 (generated at 1280x736, 2x decoder)", (2560, 1440), {"QHD": "1"}),
     "small": ("Small 864x480 (native)", (864, 480), {"WIDTH": "864", "HEIGHT": "480"}),
     "native": ("Native 1344x768 (no 2x decoder)", (1344, 768), {"WIDTH": "1344", "HEIGHT": "768"}),
+    "p720": ("720p 1280x720 (native)", (1280, 720), {"WIDTH": "1280", "HEIGHT": "736", "CROP": "1280x720"}),
+    "p960": ("960p 1728x960 (generated at 480p, 2x decoder)", (1728, 960), {"X2": "1", "WIDTH": "1728", "HEIGHT": "960"}),
 }
 QUALITIES = {
     "standard": ("Standard: Turbo 5 passes + base-model sound", {}),
     "high": ("High: 20 steps, no adapter, fast recipe (about 1.5x slower)", {"QUALITY": "high"}),
     "full": ("Full: plain 20 steps, no adapter (about 3x slower)", {"QUALITY": "full"}),
     "fast": ("Fast: Turbo 3 passes, adapter sound", {"POINTS": "4", "REVOICE": "0"}),
+    "fh8": ("FastH3: 8 passes, sparse attention (text to video only)", {"ENGINE": "fasth3", "STEPS": "8"}),
+    "fh4": ("FastH3: 4 passes, fastest and softer (text to video only)", {"ENGINE": "fasth3", "STEPS": "4"}),
+    "fh20": ("FastH3: 20 passes, most texture (text to video only)", {"ENGINE": "fasth3", "STEPS": "20"}),
 }
 SCOUT_SIZES = {"draft": (1344, 768), "2k": (1024, 576), "qhd": (1280, 736), "small": (864, 480),
-               "native": (1344, 768)}
+               "native": (1344, 768), "p720": (1280, 736), "p960": (864, 480)}
 # measured on a Mac Studio M5 Ultra, 8 second clips, standard quality, image step included (README)
 MEASURED_8S = {"draft": 108, "2k": 299, "qhd": 635, "small": 174, "native": 709}
+# FastH3, 5 second clips, measured on the same machine: quality -> preset -> seconds
+FASTH3_5S = {"fh4": {"small": 51, "p960": 61, "p720": 112, "qhd": 123},
+             "fh8": {"small": 78, "p960": 88, "p720": 192, "qhd": 203},
+             "fh20": {"small": 174, "p960": 184, "p720": 434, "qhd": 445}}
 LEAD = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced."
 
 app = FastAPI(title="TensorFold Studio")
@@ -102,6 +111,10 @@ def compose(fields: dict, first_frame: bool) -> str:
 
 
 def estimate(preset: str, quality: str, seconds: int) -> int | None:
+    if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
+        return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
+    if quality.startswith("fh"):
+        return None
     base = MEASURED_8S.get(preset)
     if base is None:
         return None
@@ -144,6 +157,10 @@ def build(kind: str, params: dict, job_id: str) -> tuple[list[str], dict, list[s
     env = {"SEED": seed, "FRAMES": DURATIONS[seconds], **PRESETS[preset][2], **QUALITIES[quality][1]}
     prompt = params["prompt"]
     image = params.get("image")
+    if "ENGINE" in env and (image or kind == "studio" or params.get("first_frame_from")):
+        raise HTTPException(400, "FastH3 is text to video only: choose text to video, or another quality")
+    if "ENGINE" in env and preset not in FASTH3_5S[quality]:
+        raise HTTPException(400, "FastH3 outputs here are Small 864x480, 960p (2x), 720p and 2K 2560x1440 (2x)")
     if kind == "video":  # text to video, or from an image the user already has
         if image:
             return (["bash", str(scripts / "studio.sh"), "", prompt, str(target)],

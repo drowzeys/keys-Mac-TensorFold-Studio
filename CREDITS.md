@@ -79,8 +79,9 @@ only; the reference-detail branch in the same file is not ported. (MiniMax H3 Co
 - **LightX2V** (ModelTC) — the **MiniMax H3 Turbo** 4-step adapter (`lightx2v/Minimax-h3-Turbo`, Apache-2.0),
   the adapter behind every fast video number in this pack.
 - **larryvrh** — `MiniMax-H3-Turbo-Lora`, the adapter lineage minimax-h3-mlx's loader was written for.
-- **FastVideo / Hao AI Lab @ UCSD** — **FastH3** 4-step adapters (`fastvideo-lora-v2`), which this family also
-  reads.
+- **FastVideo / Hao AI Lab @ UCSD** — **FastH3**: the distilled FastH3 8-Step V2 transformer that `scripts/fast.sh`
+  runs, the VSA-H3 sparse-attention routing it was trained with (their MLX routing code is vendored in the engine,
+  Apache-2.0), and the 4-step adapters (`fastvideo-lora-v2`) this family also reads.
 - **TaoLiveAIGC** — the TaoMate-H3 3-step ladder, documented in Phosphene and supported by the sigma subset
   option.
 

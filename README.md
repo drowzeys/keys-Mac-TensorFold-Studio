@@ -6,10 +6,16 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.7** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.8** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **1.8 (2026-10-07): FastH3 text to video, 4, 8 or 20 passes, at 480p or 720p with an optional 2x decoder.**
+> FastVideo's distilled FastH3 8-Step V2 now runs on a TensorFold tile-sparse attention kernel for the M5 tensor
+> units: a 5 second 480p clip with sound in **51 s** (4 passes) or **78 s** (8), 720p in 112 s or 192 s, and 2K
+> (2560x1440, through the 2x decoder) in 203 s. `bash scripts/fast.sh "a prompt" out.mp4`; see
+> [FastH3 text to video](#fasth3-text-to-video-new-in-18). Text to video only: FastH3 does not take a first frame.
+>
 > **1.7 (2026-10-07): the 20-step mode is twice as fast.** `QUALITY=high` now uses a velocity cache and attention
 > reuse after mlx-serve's fast recipe: a 10 second 1312x736 clip in 1,301 s against 2,763 s for plain 20 steps, with
 > stills that hold up beside it. `QUALITY=full` keeps the plain 20 steps.
@@ -46,6 +52,50 @@ What it is not: the editor has one video track with trims and ordering only (no 
 audio mixing), there is no assisted prompt writing, and there is **no login**, so open it to a network only if you
 trust that network. The workflow is modelled on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no
 code is shared with it.
+
+## FastH3 text to video (new in 1.8)
+
+**Credit first: FastVideo / Hao AI Lab** made FastH3 (the distilled weights and the sparse-attention routing they
+were trained with), on **MiniMax's** H3. What this pack adds is the attention kernel that makes it fast on a Mac.
+
+```bash
+bash oneshot-setup.sh --fasth3                               # once: the FastH3 8-Step V2 transformer, 70 GB more
+bash scripts/fast.sh "a prompt" out.mp4                      # 480p (864x480), 8 passes
+STEPS=4 bash scripts/fast.sh "a prompt" out.mp4              # 4, 8 or 20 passes
+RES=720p bash scripts/fast.sh "a prompt" out.mp4             # 1280x720
+UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4            # 480p generated, 2x decoder: 1728x960
+RES=720p UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4   # 720p generated, 2x decoder: 2560x1440 (2K)
+```
+
+In the web app these are the three "FastH3" entries under Quality, with the outputs Small 864x480, 960p, 720p and
+2K 2560x1440; step 2 must be set to text to video.
+
+Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), 5 second clips of 124 frames with sound, one run each,
+whole command including model load and decode:
+
+| Output | Generated at | 4 passes | 8 passes | 20 passes |
+|---|---|---:|---:|---:|
+| 480p, 864x480 | 864x480 | 51 s | 78 s | 174 s |
+| 480p + 2x decoder, 1728x960 | 864x480 | | 88 s | |
+| 720p, 1280x720 | 1280x736, cropped | 112 s | 192 s | 434 s |
+| 720p + 2x decoder, 2560x1440 | 1280x736, cropped | | 203 s | |
+
+A pass takes 7.1 s at 480p and 19.7 s at 720p; the 2x decoder adds about 10 s. A 10 second 1312x736 clip (243
+frames) takes 478 s at 8 passes, against 2,183 s with FastVideo's own Metal kernel in the same engine.
+
+- **8 passes** is what the checkpoint was trained for. **4** and **20** spread that many rungs evenly over the same
+  schedule: by eye on one prompt, 4 is a little softer and 20 has more texture. Neither is a setting FastVideo
+  trained or tested. FastVideo's dedicated 4-step preview checkpoint was tried too and looked no better than V2 at
+  4 passes for the same time, so the pack uses one checkpoint for all three.
+- **2x of 480p is 1728x960**, which is above 720p, not exactly 720p. For a 1344x768 clip generated at half size,
+  the Turbo path's `X2=1` draft preset does that.
+- **Why it is fast.** FastH3 lets each 64-row tile of the video attend to the text and audio rows and to the best
+  fifth of the video tiles. The kernel gives one threadgroup one query tile of one head and walks only the chosen
+  key tiles, read in place, with int8 scores and values. At 69K rows a block takes 0.52 s against 1.93 s for dense
+  attention. The int8 scores pick a few different tiles than FastVideo's float reference would, so details differ
+  from its output (cosine 0.9999 on random inputs; not a bit-exact port).
+- The sound is FastH3's own; the base-model audio step is not applied here.
+- FastH3 weights are a derivative of MiniMax H3 under the MiniMax H3 Community License.
 
 ## How it works
 
@@ -196,7 +246,7 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 
 `oneshot-setup.sh` does the following:
 
-1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `99fa80a3`), from the **GHCR
+1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `a2068c03`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
@@ -246,9 +296,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.7
-# index digest sha256:3ffe3114dc550524ca2af97d30dee2273c613fd81f99a8c68d22f1eda657f928 (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.7 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8
+# index digest sha256:af99af12772fedc9ee19209d0369e47729239d86bb50a1a0bcaf77d20dd58adb (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -260,7 +310,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | Piece | Value |
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
-| Engine | TensorFold 0.6.5 (`609ca419`) + ten commits, `drowzeys/TensorFold` branch `studio` @ `99fa80a32f7e61d331092064576ada72fdd2d1a4` (Apache-2.0) |
+| Engine | TensorFold 0.6.5 (`609ca419`) + twelve commits, `drowzeys/TensorFold` branch `studio` @ `a2068c031e08109a0ec14c26b1ca655cf50ac34c` (Apache-2.0) |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |

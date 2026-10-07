@@ -186,7 +186,11 @@ def main():
     parser.add_argument("--upscale-vae", help="safetensors of a packed-head (2x) video decoder; frames come out larger")
     parser.add_argument("--crop", help="WxH: centre-crop the decoded frames before the MP4 is written")
     parser.add_argument("--fasth3", help="a FastH3 checkpoint folder: its transformer, schedule and routed attention")
-    parser.add_argument("--vsa-impl", default="reference", choices=("reference", "simd"))
+    parser.add_argument("--vsa-impl", default="tensor", choices=("tensor", "reference", "simd"),
+                        help="routed attention: our int8 tile kernel, or FastVideo's reference or SIMD-group forms")
+    parser.add_argument("--fasth3-steps", type=int, default=0, metavar="N",
+                        help="with --fasth3: N forwards instead of the trained count; rungs are spread evenly from "
+                             "the checkpoint's first rung, which keeps the trained rungs when N divides their number")
     parser.add_argument("--dense", action="store_true", help="with --fasth3: dense attention instead of routed")
     parser.add_argument("--step-cache", type=float, default=0.0,
                         help="reuse the last velocity while the summed relative move stays under this (0.05)")
@@ -253,7 +257,11 @@ def main():
         points, subset = parse_subset(args.subset)
     schedule = {}
     if fast is not None:
-        schedule = {"nodes": fast.nodes, "video_shift": fast.video_shift}
+        nodes = fast.nodes
+        if args.fasth3_steps and args.fasth3_steps != len(nodes):
+            nodes = tuple(nodes[0] * (1 - i / args.fasth3_steps) for i in range(args.fasth3_steps))
+            print(f"[tensorfold] FastH3 resampled to {len(nodes)} forwards (trained for {fast.forwards})", flush=True)
+        schedule = {"nodes": nodes, "video_shift": fast.video_shift}
         if args.audio_shift is None:
             args.audio_shift = fast.audio_shift
         if fast.sparsity > 0 and not args.dense:

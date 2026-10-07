@@ -6,9 +6,9 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio}"
-TAG="${TAG:-1.7}"
+TAG="${TAG:-1.8}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
-TF_COMMIT="99fa80a32f7e61d331092064576ada72fdd2d1a4"
+TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 cd "$HERE"
 mkdir -p payload
 python3 -m pip wheel --no-deps -q -w payload "tensorfold @ git+$TF_REPO@$TF_COMMIT"

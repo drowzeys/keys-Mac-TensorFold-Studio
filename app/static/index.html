@@ -154,6 +154,7 @@ function viewCreate() {
     const ready = C.prompt.trim() && (C.mode === "t2v" || C.image);
     put(body, el("h2", {}, "Render"), el("div", { class: "note" }, S.presets[C.preset].label + " · " + S.qualities[C.quality] + " · " + C.seconds + " s · seed " + C.seed), est,
       !ready ? el("div", { class: "note", style: "color:var(--warn)" }, C.prompt.trim() ? "Pick or upload a first frame in step 2." : "Open step 4 once to build the prompt.") : null,
+      C.quality.startsWith("fh") && C.mode !== "t2v" ? el("div", { class: "note", style: "color:var(--warn)" }, "FastH3 is text to video only: switch step 2 to text to video, or pick another quality.") : null,
       el("div", { class: "row", style: "margin-top:10px" }, el("button", { class: "hot fit", disabled: !ready, onclick: async () => { try {
         const j = await api("/api/jobs", { kind: "video", title: (C.action || C.scene || "Clip").slice(0, 48), params: { prompt: C.prompt, image: C.mode === "t2v" ? null : C.image, preset: C.preset, quality: C.quality, seconds: Number(C.seconds), seed: C.seed } });
         C.job = j.id; await poll(); render(); } catch (e) { toast(e.message); } } }, "Queue this clip"), el("span")));
