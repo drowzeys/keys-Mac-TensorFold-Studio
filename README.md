@@ -6,7 +6,7 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.5** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**1.6** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
@@ -15,6 +15,33 @@ few-step adapters for both · a 2x video decoder for 2K finals
 > and ear by the pack's owner on speech and singing clips: 5 passes gave the best picture among 3, 4, 5 and 6, and
 > the base-model sound fixed what was wrong with the adapter's (harsh, echo-like, thin). A 15 second clip takes 219 s
 > this way against 606 s for the full 20 steps, which remain one switch away: `QUALITY=high`.
+
+## The web app (new in 1.6)
+
+```bash
+bash scripts/app.sh                 # http://127.0.0.1:7870
+HOST=0.0.0.0 bash scripts/app.sh    # reachable from other machines on your network
+```
+
+![Create wizard](samples/app_create.png)
+
+- **Create.** A five-step wizard: what you are making, the first frame (Qwen scouts to pick from, or your own
+  image), words and sound, a review of the exact three-part prompt MiniMax H3 will receive, then render.
+- **Production.** A project of segments for longer videos. A segment can open on the last frame of the one before,
+  so shots run on from each other; one button renders every segment not yet done.
+- **Editor.** A timeline with in and out trims, a preview of the sequence, and export to one file.
+- **Library** and a **Queue** that is always in view: progress by pass, a time estimate, cancel, logs.
+
+![Production board](samples/app_production.png) ![Clip editor](samples/app_editor.png)
+
+It drives the same scripts as the command line, one job at a time, and keeps projects, uploads and renders under
+`~/TensorFoldStudio`. Checked end to end on the Mac: two scouts (16 s), a 5 second clip from one of them (65 s), a
+second clip continuing from the first one's last frame (38 s on the fast setting) and an export of both.
+
+What it is not: the editor has one video track with trims and ordering only (no transforms, text, transitions or
+audio mixing), there is no assisted prompt writing, and there is **no login**, so open it to a network only if you
+trust that network. The workflow is modelled on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no
+code is shared with it.
 
 ## How it works
 

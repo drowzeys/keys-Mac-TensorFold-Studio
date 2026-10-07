@@ -16,6 +16,9 @@ bash scripts/image.sh "a prompt" out.png
 FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4
 ```
 
+Web app: `bash scripts/app.sh` (http://127.0.0.1:7870; `HOST=0.0.0.0` to open it to the LAN, no login). It runs the
+same scripts through a one-at-a-time queue and stores everything under `~/TensorFoldStudio`.
+
 Rules:
 
 - This is not a server. `tensorfold serve` routes neither model; render with the scripts.

@@ -84,6 +84,17 @@ only; the reference-detail branch in the same file is not ported. (MiniMax H3 Co
 - **TaoLiveAIGC** — the TaoMate-H3 3-step ladder, documented in Phosphene and supported by the sigma subset
   option.
 
+## The workflow the web app follows: rookiestar28
+
+**rookiestar28** built **ComfyUI-MiniMaxH3-Studio**: a prompt workbench, a production board for longer videos and a
+clip editor for MiniMax H3 inside ComfyUI. The web app in this pack follows that create, produce, edit flow on top
+of this pack's scripts. No code is shared; theirs is the far more complete tool. (Apache-2.0.)
+
+## The many-step fast recipe: ddalcu
+
+**ddalcu**'s **mlx-serve** showed how to make 30 steps cost nine: a velocity cache and attention reuse with careful
+gates. The engine pinned here carries an adaptation of it; it is not yet enabled in this pack's scripts.
+
 ## Platform and tools
 
 - **Apple / ml-explore** — **MLX**, and the Metal 4 tensor operations on M5.

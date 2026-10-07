@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TensorFold Studio</title>
+<style>
+:root { --bg:#0e0f14; --panel:#171922; --panel2:#1e212d; --line:#2a2e3d; --text:#e6e8f0; --dim:#9aa0b4;
+  --accent:#7c8cff; --hot:#ff6b3d; --ok:#35c98f; --warn:#f2b84b; --bad:#f0647a; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 -apple-system,"Segoe UI",Inter,sans-serif; }
+header { display:flex; align-items:center; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+header h1 { font-size:16px; margin:0 8px 0 0; } header .dot { width:9px; height:9px; border-radius:50%; background:var(--ok); }
+header small { color:var(--dim); margin-left:auto; }
+nav button, button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:7px 13px; cursor:pointer; font:inherit; }
+nav button.on { background:var(--accent); border-color:var(--accent); color:#0b0c12; font-weight:600; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b0c12; font-weight:600; }
+button.hot { background:var(--hot); border-color:var(--hot); color:#160803; font-weight:600; }
+button:disabled { opacity:.45; cursor:default; } button.small { padding:3px 8px; font-size:12px; }
+main { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; padding:14px 16px; align-items:start; }
+section.card, aside { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+aside { position:sticky; top:62px; max-height:calc(100vh - 76px); overflow:auto; }
+h2 { font-size:15px; margin:0 0 10px; } h3 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:14px 0 6px; }
+label { display:block; color:var(--dim); font-size:12px; margin:10px 0 4px; }
+input, select, textarea { width:100%; background:#0b0c12; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px 9px; font:inherit; }
+textarea { min-height:86px; resize:vertical; } input[type=checkbox] { width:auto; }
+.row { display:flex; gap:10px; align-items:end; flex-wrap:wrap; } .row > * { flex:1; min-width:120px; } .row > .fit { flex:0 0 auto; min-width:0; }
+.steps { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; } .steps button { flex:1; font-size:12px; white-space:nowrap; }
+.steps button.on { background:#b9a6ff; border-color:#b9a6ff; color:#12101d; font-weight:600; }
+.note { color:var(--dim); font-size:12px; margin-top:6px; } .hide { display:none !important; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
+.tile { background:var(--panel2); border:1px solid var(--line); border-radius:8px; overflow:hidden; } .tile.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
+.tile img, .tile video { width:100%; display:block; background:#000; aspect-ratio:16/9; object-fit:contain; } .tile .cap { padding:6px 8px; font-size:12px; color:var(--dim); display:flex; gap:6px; align-items:center; justify-content:space-between; }
+.pill { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11px; border:1px solid var(--line); }
+.pill.done { color:var(--ok); border-color:var(--ok); } .pill.running { color:var(--warn); border-color:var(--warn); } .pill.failed, .pill.cancelled { color:var(--bad); border-color:var(--bad); } .pill.queued { color:var(--dim); }
+.job { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; background:var(--panel2); }
+.bar { height:5px; background:#0b0c12; border-radius:4px; overflow:hidden; margin:6px 0; } .bar i { display:block; height:100%; background:var(--accent); }
+pre { background:#0b0c12; border:1px solid var(--line); border-radius:7px; padding:8px; white-space:pre-wrap; word-break:break-word; font-size:11px; max-height:220px; overflow:auto; }
+.seg { border:1px solid var(--line); border-radius:9px; padding:10px 12px; margin-bottom:10px; background:var(--panel2); }
+.seg.sel { border-color:#b9a6ff; } .seg header, .seghead { all:unset; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.strip { display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid var(--line); margin:8px 0; } .strip div { background:#2b3050; border-right:1px solid #0b0c12; font-size:11px; padding:2px 6px; overflow:hidden; white-space:nowrap; }
+video.main { width:100%; background:#000; border-radius:8px; max-height:52vh; }
+.tl { display:flex; gap:6px; overflow-x:auto; padding:8px; background:#0b0c12; border:1px solid var(--line); border-radius:8px; min-height:112px; }
+.clip { flex:0 0 190px; background:var(--panel2); border:1px solid var(--line); border-radius:7px; padding:6px; font-size:12px; } .clip.on { border-color:var(--warn); }
+.clip video { width:100%; aspect-ratio:16/9; background:#000; border-radius:4px; } .clip .row > * { min-width:0; } .clip input { padding:3px 5px; font-size:12px; }
+a { color:var(--accent); }
+@media (max-width:1000px) { main { grid-template-columns:1fr; } aside { position:static; max-height:none; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot"></span><h1>TensorFold Studio</h1>
+  <nav id="tabs"></nav>
+  <small id="ver"></small>
+</header>
+<main>
+  <div id="view"></div>
+  <aside>
+    <h2>Queue</h2>
+    <div class="note">One job at a time, in order. Renders are written under <span id="home"></span>.</div>
+    <div id="jobs" style="margin-top:10px"></div>
+  </aside>
+</main>
+<script>
+"use strict";
+if (location.search.includes("shot")) document.write('<img src="/api/wait?ms=4000" style="display:none">');
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (k === "html") n.innerHTML = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) n.append(kid.nodeType ? kid : document.createTextNode(kid)); return n; };
+const api = async (path, body, method) => { const r = await fetch(path, body === undefined ? { method: method || "GET" } :
+    { method: method || "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || data.detail || r.statusText); return data; };
+const file = path => "/files/" + path.split("/").map(encodeURIComponent).join("/");
+const mmss = s => s == null ? "" : (s >= 60 ? Math.floor(s / 60) + " min " : "") + Math.round(s % 60) + " s";
+const put = (node, ...kids) => node.append(...kids.flat().filter(k => k != null && k !== false));
+const toast = text => { const n = el("div", { style: "position:fixed;bottom:18px;left:18px;background:#2b3050;border:1px solid var(--accent);padding:9px 14px;border-radius:8px;z-index:9" }, text); document.put(body, n); setTimeout(() => n.remove(), 3500); };
+
+let S = null, jobs = [], tab = "Create", project = null;
+const C = { step: 0, mode: "scout", preset: "draft", quality: "standard", seconds: 5, seed: 1, scene: "", action: "", camera: "",
+  dialogue: [], soundscape: "", music: "N/A", imagePrompt: "", image: null, scoutJob: null, prompt: "", job: null, count: 4 };
+
+const field = (labelText, node) => el("div", {}, el("label", {}, labelText), node);
+const bind = (obj, key, node, after) => { const isBox = node.type === "checkbox"; if (isBox) node.checked = !!obj[key]; else node.value = obj[key] ?? "";
+  node.addEventListener("input", () => { obj[key] = isBox ? node.checked : (node.type === "number" ? Number(node.value) : node.value); if (after) after(); }); return node; };
+const select = (obj, key, options, after) => { const n = el("select", {}, Object.entries(options).map(([v, t]) => el("option", { value: v }, t))); return bind(obj, key, n, after); };
+const media = (path, attrs = {}) => /\.(mp4|mov)$/i.test(path) ? el("video", { src: file(path), controls: true, preload: "metadata", ...attrs }) : el("img", { src: file(path), loading: "lazy", ...attrs });
+
+function settingsRow(obj, after) {
+  return el("div", { class: "row" },
+    field("Clip length", select(obj, "seconds", Object.fromEntries(Object.keys(S.durations).map(s => [s, s + " s (" + S.durations[s] + " frames)"])), after)),
+    field("Output", select(obj, "preset", Object.fromEntries(Object.entries(S.presets).map(([k, v]) => [k, v.label])), after)),
+    field("Quality", select(obj, "quality", S.qualities, after)),
+    el("div", { class: "fit", style: "width:110px" }, el("label", {}, "Seed"), bind(obj, "seed", el("input", { type: "number", min: 0 }))));
+}
+async function showEstimate(obj, node) { try { const r = await api("/api/estimate", { preset: obj.preset, quality: obj.quality, seconds: Number(obj.seconds) });
+  node.textContent = r.seconds ? "Estimated render time on an M5 Ultra: about " + mmss(r.seconds) + " (scaled from measured 8 s clips)." : ""; } catch { node.textContent = ""; } }
+
+/* ---------- Create ---------- */
+const STEPS = ["1. Intent / Mode", "2. First frame", "3. Words / Sound", "4. Review prompt", "5. Render"];
+function viewCreate() {
+  const body = el("div");
+  const steps = el("div", { class: "steps" }, STEPS.map((name, i) => el("button", { class: i === C.step ? "on" : "", onclick: () => { C.step = i; render(); } }, name)));
+  const next = el("div", { class: "row", style: "margin-top:14px" }, el("button", { class: "fit", disabled: C.step === 0, onclick: () => { C.step--; render(); } }, "Back"),
+    el("span"), C.step < 4 ? el("button", { class: "primary fit", onclick: () => { C.step++; render(); } }, "Next") : null);
+  if (C.step === 0) {
+    const est = el("div", { class: "note" });
+    put(body, el("h2", {}, "What are you making?"),
+      field("Mode", select(C, "mode", { scout: "Text → scout images → video (pick the first frame)", i2v: "Your image → video", t2v: "Text → video (no first frame)" }, render)),
+      field("The picture: who and what is in frame, where, the light", bind(C, "scene", el("textarea", { placeholder: "A middle-aged baker in a cream shirt and green apron behind a wooden counter in a small bakery at dawn, warm window light from the left…" }))),
+      field("What happens in the clip", bind(C, "action", el("textarea", { placeholder: "He lifts the loaf with both hands, sets it down, looks at the camera and smiles." }))),
+      field("Camera (optional)", bind(C, "camera", el("input", { placeholder: "The camera slowly pushes in throughout the single continuous shot." }))),
+      settingsRow(C, () => showEstimate(C, est)), est);
+    showEstimate(C, est);
+  } else if (C.step === 1) {
+    if (C.mode === "t2v") put(body, el("h2", {}, "First frame"), el("div", { class: "note" }, "Text to video has no first frame. Switch the mode in step 1 to start from an image."));
+    else {
+      const up = el("input", { type: "file", accept: "image/*", onchange: async () => { const data = new FormData(); data.append("file", up.files[0]);
+        const r = await fetch("/api/upload", { method: "POST", body: data }); const j = await r.json(); if (j.path) { C.image = j.path; render(); } else toast(j.error || "upload failed"); } });
+      put(body, el("h2", {}, "First frame"));
+      if (C.mode === "scout") {
+        if (!C.imagePrompt) C.imagePrompt = C.scene;
+        const scout = C.scoutJob && jobs.find(j => j.id === C.scoutJob);
+        put(body, field("Image prompt (Qwen-Image-2.1)", bind(C, "imagePrompt", el("textarea"))),
+          el("div", { class: "row" }, el("div", { class: "fit", style: "width:120px" }, el("label", {}, "How many"), bind(C, "count", el("input", { type: "number", min: 1, max: 12 }))),
+            el("button", { class: "primary fit", disabled: !C.imagePrompt.trim(), onclick: async () => { try { const j = await api("/api/jobs", { kind: "scout", title: "Scouts",
+              params: { prompt: C.imagePrompt, count: C.count, seed: C.seed, preset: C.preset } }); C.scoutJob = j.id; await poll(); render(); } catch (e) { toast(e.message); } } }, "Make scouts"), el("span")),
+          scout ? el("div", { class: "note" }, "Scout job: ", el("span", { class: "pill " + scout.status }, scout.status)) : el("div", { class: "note" }, "Six scouts take about half a minute. They are made at the size the video model starts from."));
+        if (scout && scout.status === "done") put(body, el("div", { class: "grid", style: "margin-top:10px" }, scout.outputs.filter(p => !p.endsWith("sheet.jpg")).map(p =>
+          el("div", { class: "tile" + (C.image === p ? " on" : ""), onclick: () => { C.image = p; render(); } }, media(p), el("div", { class: "cap" }, p.split("/").pop(), C.image === p ? "✓ selected" : "pick")))));
+      } else put(body, field("Upload an image", up));
+      if (C.image) put(body, el("h3", {}, "Selected first frame"), el("div", { style: "max-width:420px" }, media(C.image, { style: "width:100%;border-radius:8px" })),
+        el("div", { class: "note" }, "The image is stretched onto the clip's canvas, so match its aspect ratio (16:9 for the presets here)."));
+    }
+  } else if (C.step === 2) {
+    put(body, el("h2", {}, "Words and sound"), el("div", { class: "note" }, "Spoken or sung lines are written into the prompt exactly. Leave empty for a clip with no speech."),
+      C.dialogue.map((line, i) => el("div", { class: "seg" }, el("div", { class: "row" }, field("Voice", bind(line, "voice", el("input", { placeholder: "a calm, slightly raspy male voice" }))),
+        el("div", { class: "fit", style: "width:120px" }, el("label", {}, "Language"), bind(line, "language", el("input"))),
+        el("label", { class: "fit" }, bind(line, "sung", el("input", { type: "checkbox" })), " sung"),
+        el("button", { class: "small fit", onclick: () => { C.dialogue.splice(i, 1); render(); } }, "Remove")), field("Line", bind(line, "text", el("textarea", { style: "min-height:54px" }))))),
+      el("button", { onclick: () => { C.dialogue.push({ voice: "", language: "English", text: "", sung: false }); render(); } }, "+ Add a line"),
+      field("Soundscape", bind(C, "soundscape", el("textarea", { placeholder: "Quiet bakery room tone and a low oven hum. A light ceramic tap as the loaf is set down." }))),
+      field("Music (N/A for none)", bind(C, "music", el("input"))));
+  } else if (C.step === 3) {
+    const area = bind(C, "prompt", el("textarea", { style: "min-height:260px;font-family:ui-monospace,monospace;font-size:12px" }));
+    const again = async () => { const r = await api("/api/compose", { fields: C, first_frame: C.mode !== "t2v" }); C.prompt = r.prompt; area.value = r.prompt; };
+    if (!C.prompt) again();
+    put(body, el("h2", {}, "Review the prompt"), el("div", { class: "note" }, "This is what the video model receives, in MiniMax H3's own three-part format. Edit it freely; “Rebuild” discards edits."), area,
+      el("div", { class: "row", style: "margin-top:8px" }, el("button", { class: "fit", onclick: again }, "Rebuild from steps 1–3"), el("span")));
+  } else {
+    const est = el("div", { class: "note" }); showEstimate(C, est);
+    const job = C.job && jobs.find(j => j.id === C.job);
+    const ready = C.prompt.trim() && (C.mode === "t2v" || C.image);
+    put(body, el("h2", {}, "Render"), el("div", { class: "note" }, S.presets[C.preset].label + " · " + S.qualities[C.quality] + " · " + C.seconds + " s · seed " + C.seed), est,
+      !ready ? el("div", { class: "note", style: "color:var(--warn)" }, C.prompt.trim() ? "Pick or upload a first frame in step 2." : "Open step 4 once to build the prompt.") : null,
+      el("div", { class: "row", style: "margin-top:10px" }, el("button", { class: "hot fit", disabled: !ready, onclick: async () => { try {
+        const j = await api("/api/jobs", { kind: "video", title: (C.action || C.scene || "Clip").slice(0, 48), params: { prompt: C.prompt, image: C.mode === "t2v" ? null : C.image, preset: C.preset, quality: C.quality, seconds: Number(C.seconds), seed: C.seed } });
+        C.job = j.id; await poll(); render(); } catch (e) { toast(e.message); } } }, "Queue this clip"), el("span")));
+    if (job) { put(body, el("h3", {}, "This clip"), jobCard(job));
+      if (job.status === "done") put(body, el("video", { class: "main", src: file(job.outputs[0]), controls: true }),
+        el("div", { class: "row", style: "margin-top:8px" }, el("button", { class: "fit", onclick: () => addToTimeline(job.outputs[0]) }, "Add to the editor timeline"), el("a", { class: "fit", href: file(job.outputs[0]), download: "" }, "Download"), el("span"))); }
+  }
+  return el("section", { class: "card" }, steps, body, next);
+}
+
+/* ---------- Production ---------- */
+async function ensureProject() { if (project) return project; const list = await api("/api/projects"); project = list.length ? await api("/api/projects/" + list[0].id) : await api("/api/projects", { name: "Project 1" }); return project; }
+const saveProject = () => api("/api/projects/" + project.id, project, "PUT").catch(e => toast(e.message));
+const segJob = seg => seg.job && jobs.find(j => j.id === seg.job);
+async function composeSeg(seg, index) { const first = seg.start !== "text"; const r = await api("/api/compose", { fields: { scene: seg.scene, action: seg.action, camera: seg.camera, soundscape: seg.soundscape, music: "N/A",
+  dialogue: seg.line ? [{ voice: seg.voice, text: seg.line, language: "English" }] : [] }, first_frame: first }); seg.prompt = r.prompt; }
+async function generateSeg(index) { const seg = project.segments[index]; if (!seg.prompt) await composeSeg(seg, index);
+  const params = { prompt: seg.prompt, preset: project.preset, quality: project.quality, seconds: Number(seg.seconds), seed: Number(seg.seed || 1), output: "projects/" + project.id + "/seg" + (index + 1) + "_" + Date.now() + ".mp4" };
+  if (seg.start === "image" && seg.image) params.image = seg.image;
+  if (seg.start === "previous") { const prev = project.segments[index - 1]; if (!prev) throw new Error("the first segment has nothing to continue from"); const pj = segJob(prev);
+    params.first_frame_from = prev.output || (pj && pj.params.output); if (!params.first_frame_from) throw new Error("generate segment " + index + " first, or queue them together"); }
+  const j = await api("/api/jobs", { kind: "video", title: "Segment " + (index + 1) + ": " + (seg.title || ""), params }); seg.job = j.id; seg.output = params.output; }
+function viewProduction() {
+  const box = el("section", { class: "card" }, el("h2", {}, "Production"));
+  ensureProject().then(async () => {
+    const list = await api("/api/projects"); const total = project.segments.reduce((a, s) => a + Number(s.seconds || 0), 0);
+    const pick = el("select", { onchange: async () => { project = await api("/api/projects/" + pick.value); render(); } }, list.map(p => el("option", { value: p.id, selected: p.id === project.id }, p.name + " · " + p.segments + " segments")));
+    put(box, el("div", { class: "row" }, field("Project", pick), field("Name", bind(project, "name", el("input"), saveProject)),
+        el("button", { class: "fit", onclick: async () => { project = await api("/api/projects", { name: "Project " + (list.length + 1) }); render(); } }, "New project")),
+      el("div", { class: "row" }, field("Output for every segment", select(project, "preset", Object.fromEntries(Object.entries(S.presets).map(([k, v]) => [k, v.label])), saveProject)),
+        field("Quality", select(project, "quality", S.qualities, saveProject))),
+      el("h3", {}, "Segment overview · " + total + " s total"),
+      el("div", { class: "strip" }, project.segments.map((s, i) => el("div", { style: "flex:" + (s.seconds || 5) }, (i + 1) + " · " + (s.title || "") + " · " + s.seconds + " s"))),
+      el("div", { class: "row" }, el("button", { class: "fit", onclick: () => { project.segments.push({ title: "", scene: project.segments.at(-1)?.scene || "", action: "", camera: "", voice: "", line: "", soundscape: "", seconds: 5, seed: 1,
+          start: project.segments.length ? "previous" : "text", image: null, prompt: "" }); saveProject(); render(); } }, "+ Add a segment"),
+        el("button", { class: "hot fit", disabled: !project.segments.length, onclick: async () => { try { for (let i = 0; i < project.segments.length; i++) if (!project.segments[i].output || segJob(project.segments[i])?.status === "failed") await generateSeg(i);
+          await saveProject(); await poll(); render(); } catch (e) { toast(e.message); } } }, "Generate every segment not yet rendered"),
+        el("button", { class: "fit", disabled: !project.segments.some(s => s.output), onclick: () => { project.timeline = project.segments.filter(s => s.output).map(s => ({ path: s.output, in: 0, out: 0, duration: Number(s.seconds) }));
+          saveProject(); tab = "Editor"; render(); } }, "Send rendered segments to the editor"), el("span")));
+    project.segments.forEach((seg, i) => { const job = segJob(seg); const change = () => { seg.prompt = ""; saveProject(); };
+      put(box, el("div", { class: "seg" }, el("div", { class: "seghead" }, el("b", {}, "Segment " + (i + 1)), job ? el("span", { class: "pill " + job.status }, job.status) : el("span", { class: "pill queued" }, seg.output ? "rendered" : "draft"),
+          el("span", { style: "flex:1" }), el("button", { class: "small", onclick: async () => { try { await generateSeg(i); await saveProject(); await poll(); render(); } catch (e) { toast(e.message); } } }, seg.output ? "Render again" : "Render"),
+          el("button", { class: "small", disabled: i === 0, onclick: () => { project.segments.splice(i - 1, 0, project.segments.splice(i, 1)[0]); saveProject(); render(); } }, "↑"),
+          el("button", { class: "small", onclick: () => { project.segments.splice(i, 1); saveProject(); render(); } }, "Remove")),
+        el("div", { class: "row" }, field("Title", bind(seg, "title", el("input"), saveProject)),
+          el("div", { class: "fit", style: "width:150px" }, el("label", {}, "Length"), select(seg, "seconds", Object.fromEntries(Object.keys(S.durations).map(s => [s, s + " s"])), saveProject)),
+          field("Opens on", select(seg, "start", { text: "nothing (text to video)", previous: "the last frame of the segment before", image: "an image from the library" }, () => { change(); render(); })),
+          el("div", { class: "fit", style: "width:90px" }, el("label", {}, "Seed"), bind(seg, "seed", el("input", { type: "number" }), saveProject))),
+        seg.start === "image" ? field("Image path (copy from the Library tab)", bind(seg, "image", el("input", { placeholder: "scouts/…/scout_s3.png" }), saveProject)) : null,
+        field("The picture", bind(seg, "scene", el("textarea", { style: "min-height:54px" }), change)), field("What happens", bind(seg, "action", el("textarea", { style: "min-height:54px" }), change)),
+        el("div", { class: "row" }, field("Voice", bind(seg, "voice", el("input", { placeholder: "a warm female voice" }), change)), field("Spoken line (optional)", bind(seg, "line", el("input"), change))),
+        field("Soundscape", bind(seg, "soundscape", el("input"), change)),
+        job && job.status === "running" ? jobCard(job) : null,
+        seg.output && (!job || job.status === "done") ? el("video", { src: file(seg.output), controls: true, preload: "metadata", style: "width:100%;max-width:520px;border-radius:8px;margin-top:8px" }) : null)); });
+  }).catch(e => put(box, el("div", { class: "note" }, e.message)));
+  return box;
+}
+
+/* ---------- Editor ---------- */
+async function addToTimeline(path) { await ensureProject(); let duration = 5; try { duration = (await api("/api/probe?path=" + encodeURIComponent(path))).duration || 5; } catch {}
+  project.timeline.push({ path, in: 0, out: 0, duration }); await saveProject(); toast("Added to the timeline of " + project.name); if (tab === "Editor") render(); }
+function viewEditor() {
+  const box = el("section", { class: "card" }, el("h2", {}, "Clip editor"));
+  ensureProject().then(async () => {
+    const lib = (await api("/api/library")).filter(m => m.kind === "video"); const tl = project.timeline; let at = 0;
+    const player = el("video", { class: "main", controls: true }); const info = el("div", { class: "note" });
+    const span = c => [Number(c.in) || 0, Number(c.out) > Number(c.in) ? Number(c.out) : c.duration];
+    const load = (i, play) => { at = i; if (!tl[i]) return; const [a] = span(tl[i]); player.src = file(tl[i].path) + "#t=" + a; player.currentTime = a; if (play) player.play(); mark(); };
+    const strip = el("div", { class: "tl" }); const mark = () => [...strip.children].forEach((n, i) => n.classList.toggle("on", i === at));
+    player.addEventListener("timeupdate", () => { const c = tl[at]; if (!c) return; const [, b] = span(c); if (player.currentTime >= b - 0.04 && !player.paused) { if (at + 1 < tl.length) load(at + 1, true); else player.pause(); } });
+    player.addEventListener("ended", () => { if (at + 1 < tl.length) load(at + 1, true); });
+    const total = () => tl.reduce((s, c) => { const [a, b] = span(c); return s + Math.max(b - a, 0); }, 0);
+    tl.forEach((c, i) => strip.append(el("div", { class: "clip", onclick: e => { if (e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON") load(i, false); } },
+      el("video", { src: file(c.path) + "#t=0.5", preload: "metadata", muted: true }), el("div", {}, (i + 1) + " · " + c.path.split("/").pop().slice(0, 22)),
+      el("div", { class: "row" }, field("In (s)", bind(c, "in", el("input", { type: "number", step: 0.1, min: 0 }), () => { saveProject(); info.textContent = "Timeline " + total().toFixed(1) + " s"; })),
+        field("Out (s)", bind(c, "out", el("input", { type: "number", step: 0.1, min: 0, placeholder: c.duration.toFixed(1) }), () => { saveProject(); info.textContent = "Timeline " + total().toFixed(1) + " s"; }))),
+      el("div", { class: "row", style: "margin-top:5px" }, el("button", { class: "small", disabled: i === 0, onclick: () => { tl.splice(i - 1, 0, tl.splice(i, 1)[0]); saveProject(); render(); } }, "←"),
+        el("button", { class: "small", disabled: i === tl.length - 1, onclick: () => { tl.splice(i + 1, 0, tl.splice(i, 1)[0]); saveProject(); render(); } }, "→"),
+        el("button", { class: "small", onclick: () => { tl.splice(i, 1); saveProject(); render(); } }, "✕")))));
+    if (!tl.length) strip.append(el("div", { class: "note", style: "padding:14px" }, "The timeline is empty. Add clips from the media bin below, or send rendered segments from Production."));
+    info.textContent = "Timeline " + total().toFixed(1) + " s · " + tl.length + " clips · project " + project.name + ". Out = 0 plays a clip to its end.";
+    const size = el("select", {}, [["1920x1080", "1920×1080"], ["2560x1440", "2560×1440"], ["2048x1152", "2048×1152"], ["1344x768", "1344×768"]].map(([v, t]) => el("option", { value: v }, t)));
+    const exp = project.exportJob && jobs.find(j => j.id === project.exportJob);
+    put(box, el("h3", {}, "Preview"), player, el("div", { class: "row", style: "margin:8px 0" }, el("button", { class: "fit", disabled: !tl.length, onclick: () => load(0, true) }, "▶ Play the sequence"),
+        el("div", { class: "fit", style: "width:150px" }, size), el("button", { class: "primary fit", disabled: !tl.length, onclick: async () => { try { const [w, h] = size.value.split("x").map(Number);
+          const j = await api("/api/jobs", { kind: "export", title: "Export " + project.name, params: { clips: tl, width: w, height: h } }); project.exportJob = j.id; await saveProject(); await poll(); render(); } catch (e) { toast(e.message); } } }, "Export"), el("span")),
+      info, el("h3", {}, "Timeline"), strip,
+      exp ? el("div", { style: "margin-top:10px" }, jobCard(exp), exp.status === "done" ? el("div", {}, el("video", { class: "main", src: file(exp.outputs[0]), controls: true }), el("a", { href: file(exp.outputs[0]), download: "" }, "Download the export")) : null) : null,
+      el("h3", {}, "Media bin"), el("div", { class: "grid" }, lib.slice(0, 60).map(m => el("div", { class: "tile" }, media(m.path, { controls: false, muted: true, onmouseenter: e => e.target.play().catch(() => {}), onmouseleave: e => e.target.pause() }),
+        el("div", { class: "cap" }, m.path.split("/").pop().slice(0, 20), el("button", { class: "small", onclick: () => addToTimeline(m.path) }, "+ timeline"))))));
+    if (tl.length) load(0, false);
+  }).catch(e => put(box, el("div", { class: "note" }, e.message)));
+  return box;
+}
+
+/* ---------- Library ---------- */
+function viewLibrary() { const box = el("section", { class: "card" }, el("h2", {}, "Library"));
+  api("/api/library").then(list => put(box, el("div", { class: "note" }, list.length + " files. Click a path to copy it."), el("div", { class: "grid", style: "margin-top:10px" }, list.map(m =>
+    el("div", { class: "tile" }, media(m.path), el("div", { class: "cap" }, el("span", { style: "cursor:pointer", title: m.path, onclick: () => { navigator.clipboard?.writeText(m.path); toast("Copied " + m.path); } }, m.path.slice(-26)),
+      m.kind === "video" ? el("button", { class: "small", onclick: () => addToTimeline(m.path) }, "+ timeline") : el("button", { class: "small", onclick: () => { C.image = m.path; C.mode = "i2v"; C.step = 1; tab = "Create"; render(); } }, "use")))))));
+  return box; }
+
+/* ---------- Queue ---------- */
+function jobCard(job) { const p = job.progress; const elapsed = job.started ? ((job.finished || Date.now() / 1000) - job.started) : null;
+  const pre = el("pre", { class: "hide" }, job.log || "");
+  return el("div", { class: "job" }, el("div", { class: "seghead" }, el("b", {}, job.title), el("span", { class: "pill " + job.status }, job.status), el("span", { style: "flex:1" }),
+      ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: async () => { await api("/api/jobs/" + job.id + "/cancel", {}); poll(); } }, "Cancel") : null,
+      el("button", { class: "small", onclick: () => pre.classList.toggle("hide") }, "Log")),
+    job.status === "running" ? el("div", {}, el("div", { class: "bar" }, el("i", { style: "width:" + (p ? Math.round(100 * p.at / p.of) : 3) + "%" })),
+      el("div", { class: "note" }, (p ? p.stage + " " + p.at + "/" + p.of + " · " : "loading · ") + mmss(elapsed) + (job.estimate ? " of about " + mmss(job.estimate) : ""))) : null,
+    job.status === "done" && elapsed ? el("div", { class: "note" }, "Took " + mmss(elapsed)) : null, job.error ? el("div", { class: "note", style: "color:var(--bad)" }, job.error) : null, pre); }
+let lastSig = "";
+async function poll() { try { jobs = await api("/api/jobs"); } catch { return; }
+  const box = $("#jobs"); box.replaceChildren(...(jobs.length ? jobs.slice(0, 30).map(jobCard) : [el("div", { class: "note" }, "Nothing queued yet.")]));
+  const sig = jobs.map(j => j.id + j.status).join(); if (sig !== lastSig) { const had = lastSig; lastSig = sig; if (had && !document.activeElement.matches("input,textarea,select")) render(); } }
+
+function render() { $("#tabs").replaceChildren(...["Create", "Production", "Editor", "Library"].map(t => el("button", { class: t === tab ? "on" : "", onclick: () => { tab = t; history.replaceState(null, "", "#" + t); render(); } }, t)));
+  $("#view").replaceChildren({ Create: viewCreate, Production: viewProduction, Editor: viewEditor, Library: viewLibrary }[tab]()); }
+(async () => { const want = decodeURIComponent(location.hash.slice(1)); if (["Create", "Production", "Editor", "Library"].includes(want)) tab = want;
+  S = await api("/api/state"); $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
+</script>
+</body>
+</html>
