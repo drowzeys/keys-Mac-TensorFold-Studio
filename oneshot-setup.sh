@@ -3,7 +3,9 @@
 # One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + MiniMax H3 (video + audio)
 #
 #   bash oneshot-setup.sh               # install, fetch both models, both turbo adapters and the 2x video decoder, render a test clip
+#   bash oneshot-setup.sh --fasth3 --app   # everything, plus the double-clickable app: the full one-shot
 #   bash oneshot-setup.sh --fasth3      # also fetch FastH3 8-Step V2 (70 GB more) for scripts/fast.sh, text to video
+#   bash oneshot-setup.sh --app         # also build ~/Applications/TensorFold Studio.app (and a Desktop shortcut)
 #   bash oneshot-setup.sh --image-only  # the image model only (33 GB instead of 177 GB), render a test image
 #   bash oneshot-setup.sh --no-render   # install and fetch only
 #   bash oneshot-setup.sh --verify      # check an existing install, no downloads, no render
@@ -22,7 +24,7 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
@@ -38,11 +40,12 @@ QWEN_ADAPTER_SHA256="f06c266e04438b5272bdfb99410421d52a65d7a37f6f42aabc3cb1faf01
 X2_REPO="speach1sdef178/MiniMax-H3-X2-Detail-VAE"
 X2_NAME="MiniMax-H3-X2-Detail-v1.safetensors"
 X2_SHA256="2296840f4acedcaa976688e7d7b97f7bf570b136e400385d3f46224011897aac"
-MODE=""; VIDEO=1; FASTH3=0
+MODE=""; VIDEO=1; FASTH3=0; APP=0
 for arg in "$@"; do
   case "$arg" in
     --image-only) VIDEO=0;;
     --fasth3) FASTH3=1;;
+    --app) APP=1;;
     --verify|--no-render) MODE="$arg";;
     *) echo "unknown option $arg" >&2; exit 2;;
   esac
@@ -179,6 +182,12 @@ if [ "$VIDEO" = 1 ]; then
   fi
 fi
 
+export PREFIX H3_MODEL_DIR QWEN_MODEL_DIR FASTH3_DIR
+if [ "$APP" = 1 ] && [ "$MODE" != "--verify" ]; then
+  step "One-click app"
+  DESKTOP=1 bash "$HERE/scripts/make-app.sh" | sed 's/^/  /'
+fi
+
 if [ "$MODE" = "--verify" ] || [ "$MODE" = "--no-render" ]; then
   echo; echo "DONE. Image: bash $HERE/scripts/image.sh \"a prompt\" out.png"
   [ "$VIDEO" = 0 ] || echo "      Studio: bash $HERE/scripts/studio.sh \"the picture\" \"what happens\" out.mp4"
@@ -201,6 +210,7 @@ WIDTH=864 HEIGHT=480 FRAMES=124 SEED=42 IMAGE_PROMPT_FILE="$HERE/prompts/baker-i
 [ -s "$HERE/outputs/test.mp4" ] || die "the test render wrote no file"
 echo
 echo "DONE. $HERE/outputs/test.png and $HERE/outputs/test.mp4"
+echo "App:    double-click TensorFold Studio in ~/Applications   (bash $HERE/scripts/make-app.sh builds it; or bash $HERE/scripts/app.sh)"
 echo "Studio: bash $HERE/scripts/studio.sh \"the picture\" \"what happens in the clip\" out.mp4"
 echo "Image:  bash $HERE/scripts/image.sh \"a prompt\" out.png"
 echo "Video:  bash $HERE/scripts/video.sh \"a prompt\" out.mp4      (FIRST_FRAME=photo.jpg for image to video)"

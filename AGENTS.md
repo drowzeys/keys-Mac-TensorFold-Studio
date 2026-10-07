@@ -1,7 +1,7 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9` (not a runtime; TensorFold wheel + lock + render scripts)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
@@ -26,7 +26,7 @@ Do these in order on the person's Mac, and report each result plainly.
 2. `brew install python@3.11 uv ffmpeg` (install Homebrew first only with the person's agreement).
 3. Tell the person the download sizes and licenses before starting: Qwen-Image-2.1 33 GB (Qwen Research License,
    non-commercial), MiniMax H3 144 GB (MiniMax H3 Community License, territory limits), FastH3 70 GB (same license).
-4. `bash oneshot-setup.sh --fasth3` (drop `--fasth3` if they do not want it). It resumes if interrupted. It ends by
+4. `bash oneshot-setup.sh --fasth3 --app` (drop `--fasth3` if they do not want it; `--app` does step 5 with a Desktop shortcut). It resumes if interrupted. It ends by
    rendering `outputs/test.mp4`; confirm that file exists and plays.
 5. `bash scripts/make-app.sh` builds `~/Applications/TensorFold Studio.app`. If the models are not in the default
    folders, export `QWEN_MODEL_DIR`, `H3_MODEL_DIR`, `FASTH3_DIR` first: the app records them. Do not set

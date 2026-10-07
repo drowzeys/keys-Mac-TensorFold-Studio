@@ -40,11 +40,12 @@ Needs an Apple-silicon Mac with an M5-family chip for the fast path, 128 GB of m
 brew install python@3.11 uv ffmpeg
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
-bash oneshot-setup.sh --fasth3      # engine, both models, adapters, 2x decoder, FastH3; renders a test clip at the end
-bash scripts/make-app.sh            # builds ~/Applications/TensorFold Studio.app
+bash oneshot-setup.sh --fasth3 --app    # engine, models, adapters, 2x decoder, FastH3, the app; ends with a test clip
 ```
 
-Then **double-click TensorFold Studio** in `~/Applications` (drag it to the Dock if you like). It starts the studio
+**Step-by-step tutorial with screenshots: [TUTORIAL.md](TUTORIAL.md).**
+
+Then **double-click TensorFold Studio** on the Desktop or in `~/Applications` (drag it to the Dock if you like). `bash scripts/make-app.sh` rebuilds the app on its own. It starts the studio
 if it is not running and opens it in your browser; double-click again to come back to it. Without the app:
 `bash scripts/app.sh`, then open http://127.0.0.1:7870.
 
@@ -380,9 +381,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8
-# index digest sha256:af99af12772fedc9ee19209d0369e47729239d86bb50a1a0bcaf77d20dd58adb (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.8 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9
+# index digest sha256:7dfb436feda8bb3fbd2b77e31c786912edc6bc3243568265f4fb324f615b92ba (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a

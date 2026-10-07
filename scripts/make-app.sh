@@ -2,6 +2,7 @@
 # Build a double-clickable macOS app that starts TensorFold Studio and opens it in the browser.
 #   bash scripts/make-app.sh                      # -> ~/Applications/TensorFold Studio.app
 #   APP_DIR=/Applications bash scripts/make-app.sh
+#   DESKTOP=1 bash scripts/make-app.sh            # also put a shortcut to it on the Desktop
 # The app is a small launcher around scripts/app.sh in this clone: it starts the server if it is not running, waits
 # for it and opens http://127.0.0.1:$PORT. Double-click again to reopen the page. The paths in use now (PREFIX,
 # QWEN_MODEL_DIR, H3_MODEL_DIR, FASTH3_DIR, STUDIO_HOME, PORT) are written into the app, so set them before building
@@ -34,7 +35,7 @@ PLIST
   echo '#!/bin/bash'
   echo "# written by scripts/make-app.sh on $(date +%F)"
   printf 'export PACK=%q PREFIX=%q PORT=%q\n' "$HERE" "$PREFIX" "$PORT"
-  for name in QWEN_MODEL_DIR H3_MODEL_DIR FASTH3_DIR STUDIO_HOME HOST; do
+  for name in QWEN_MODEL_DIR H3_MODEL_DIR FASTH3_DIR STUDIO_HOME HOST; do  # only what differs from the defaults matters
     [ -z "${!name:-}" ] || printf 'export %s=%q\n' "$name" "${!name}"
   done
   cat <<'LAUNCH'
@@ -83,5 +84,6 @@ then
   rm "$ICONSET/base.png"
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns" 2>/dev/null || true
 fi
+if [ "${DESKTOP:-0}" = 1 ]; then ln -sfn "$APP" "$HOME/Desktop/TensorFold Studio"; echo "Shortcut on the Desktop: TensorFold Studio"; fi
 echo "Built $APP"
 echo "Double-click it (or: open \"$APP\"). It serves http://127.0.0.1:$PORT from $HERE."
