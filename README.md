@@ -95,7 +95,7 @@ right.
    on a 15 second clip) against the stored keys and values: about 1.3 s a step instead of 24 s.
 
 It is on by default whenever the adapter is used. `REVOICE=0` keeps the adapter's own sound; `REVOICE=<steps>` sets the
-number of audio steps (20 is the only value tried). Proposed upstream as a draft, ashhart/TensorFold#405.
+number of audio steps (20 is the only value tried). It was offered upstream (ashhart/TensorFold#405) and closed with the H3 family; it lives in the fork.
 
 ## The workflow
 
@@ -303,8 +303,10 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
 - **Memory.** `--image-only` asks for 48 GB; the video model needs 128 GB+. Measured on 256 GB only.
-- Proposed upstream as draft pull requests: the H3 family (ashhart/TensorFold#384), the Qwen-Image family (#393) and
-  the audio step with the 2x decoder (#405). None is part of a TensorFold release.
+- **Not part of upstream TensorFold.** The H3 family, the Qwen-Image family and the audio step were offered to
+  ashhart/TensorFold as draft pull requests (#384, #393, #405) and closed on 2026-10-07: the engine is built around
+  token lanes with exact output, it does not trade precision as the int8 kernels do, its Python engine is frozen and
+  its new Zig engine drives Metal without MLX. This code lives in the `drowzeys/TensorFold` fork, on 0.6.5.
 
 ## Credits
 
