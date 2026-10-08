@@ -31,6 +31,8 @@ REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
 # the native engine for FastH3: TensorFold 1.0.2's Zig + Metal runtime with the H3 family, from the same fork
 ZIG_COMMIT="4741fd0adef0b8864bfb61f12464682e645ec3b7"
+ZIG_ENGINE_URL="https://github.com/drowzeys/keys-Mac-TensorFold-Studio/releases/download/v2.0/zig-engine-4741fd0a-macos-arm64.tar.gz"
+ZIG_ENGINE_SHA256="416932b546674bfc51b580f7ac52b0ab341a1479fe73d7002b5623bca271179b"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
 MFLUX_COMMIT="add5164e62c07cbcc9aec7a95c2e19c75605880c"
 H3_ADAPTER_NAME="lightx2v_v1.0_768p_ourlayout.safetensors"
@@ -188,9 +190,18 @@ if [ "$VIDEO" = 1 ]; then
       if [ "$MODE" = "--verify" ]; then
         echo "  ! the native engine is not installed: FastH3 runs on the MLX engine"
       else
-        # carrier payload first, then a build from source, else the MLX engine stays in use
+        # carrier payload first, then the release download, then a build from source, else the MLX engine stays in use
         engine_ok() { [ "$(cat "$HERE/payload/zig-engine/COMMIT" 2>/dev/null)" = "$ZIG_COMMIT" ] && ( cd "$HERE/payload/zig-engine" && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1 ); }
         engine_ok || { mkdir -p "$HERE/payload"; fetch_ghcr >/dev/null 2>&1 || true; }
+        # no Docker on this Mac: the same engine as a checksummed release download
+        if ! engine_ok; then
+          T="$(mktemp -d)"
+          if curl -fsSL -o "$T/engine.tgz" "$ZIG_ENGINE_URL" && [ "$(shasum -a 256 "$T/engine.tgz" | cut -d' ' -f1)" = "$ZIG_ENGINE_SHA256" ]; then
+            echo "  prebuilt engine from $ZIG_ENGINE_URL"
+            rm -rf "$HERE/payload/zig-engine"; tar -xzf "$T/engine.tgz" -C "$HERE/payload"
+          fi
+          rm -rf "$T"
+        fi
         if ! engine_ok && command -v zig >/dev/null && xcrun -sdk macosx metal -v >/dev/null 2>&1; then
           echo "  no carrier payload for the engine; building from source"
           ZIG_COMMIT="$ZIG_COMMIT" TF_REPO="$TF_REPO" bash "$HERE/scripts/build-zig-engine.sh" | sed 's/^/  /' || true
@@ -199,7 +210,7 @@ if [ "$VIDEO" = 1 ]; then
           rm -rf "$ZIG_ENGINE"; cp -R "$HERE/payload/zig-engine" "$ZIG_ENGINE"; chmod +x "$ZIG_ENGINE/tf-h3-dit"
           ln -sfn ../h3_generate.py "$ZIG_ENGINE/h3_generate_dev.py"
         else
-          echo "  ! no native engine (no carrier payload, and a source build needs zig 0.17 and Xcode's Metal toolchain): FastH3 runs on the MLX engine"
+          echo "  ! no native engine (no carrier payload or release download, and a source build needs zig 0.17 and Xcode's Metal toolchain): FastH3 runs on the MLX engine"
         fi
       fi
     fi

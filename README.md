@@ -417,6 +417,8 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 
 1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `a2068c03`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
+   The native FastH3 engine (`tf-h3-dit`) comes from the same carrier, or without Docker as a checksummed download
+   from the [v2.0 release](https://github.com/drowzeys/keys-Mac-TensorFold-Studio/releases/tag/v2.0); no Zig toolchain is needed.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
 3. Downloads `Qwen/Qwen-Image-2.1` (33 GB) to `~/qwen-models/Qwen-Image-2.1` and the Viggle turbo adapter (1.36 GB,
