@@ -49,6 +49,18 @@ few-step adapters for both · a 2x video decoder for 2K finals
 Needs an Apple-silicon Mac with an M5-family chip for the fast path, 128 GB of memory or more for video, and about
 180 GB of disk (250 GB with FastH3). Measured on a Mac Studio M5 Ultra with 256 GB only.
 
+| Machine | Status |
+|---|---|
+| Mac Studio M5 Ultra, 256 GB, macOS 27 | **Tested.** Every number in this README is from this machine. |
+| M5 Max, 128 GB | Untested. Meets the memory check (video passes peak near 64 GB); about half the GPU, so expect roughly twice the times. |
+| M5 or M5 Pro, 48 GB or more | Untested. Image only (`--image-only`); the setup refuses video under 128 GB. |
+| M4 and earlier | Untested. No tensor units: the int8 kernels and the native engine are skipped and the engine runs bfloat16, far slower. |
+| macOS 26 | Untested. The kernels need Metal 4, so it is the likely minimum. |
+
+Installed size: about 240 GB, nearly all model weights (MiniMax H3 134 GB, FastH3 65 GB, Qwen-Image-2.1 31 GB,
+adapters and the 2x decoder 8 GB, Python environment 1.3 GB). The Studio's own code and the native engine are a few
+megabytes. If you run it on another machine, a report of the chip, memory and times is welcome as an issue.
+
 ```bash
 brew install python@3.11 uv ffmpeg
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
