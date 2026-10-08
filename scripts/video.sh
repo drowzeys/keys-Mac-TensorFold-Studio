@@ -18,6 +18,9 @@
 # `oneshot-setup.sh --fasth3`) with its sparse attention on TensorFold's tile kernel. STEPS is the number of passes:
 # 8 is what the checkpoint was trained for, 4 is faster and softer, 20 slower with more texture. FIRST_FRAME works
 # too, though FastVideo trained FastH3 on text to video only.
+# FastH3's passes run on TensorFold 1.0's native Zig + Metal runtime ($PREFIX/zig-engine) when it is installed, the
+# chip has tensor units (M5 or later) and the clip is text to video; a clip that starts from an image, and any
+# machine without the engine, uses the MLX engine as before. FASTH3_ENGINE=zig or mlx forces one.
 # X2=1 makes WIDTH x HEIGHT the size of the finished clip: the model generates at half of each and the 2x decoder
 # ($X2_VAE) doubles it, so both must be multiples of 64 (default 1344x768). CROP=WxH centre-crops the frames before the clip is written.
 set -euo pipefail
@@ -53,6 +56,29 @@ ARGS=("$H3_MODEL_DIR" -o "$OUT" --width "$W" --height "$H" --frames "${FRAMES:-1
 [ "$ENGINE" != fasth3 ] || ARGS+=(--fasth3 "$FASTH3_DIR" --fasth3-steps "$STEPS")
 [ "$REVOICE" = 0 ] || ARGS+=(--revoice "$REVOICE")
 [ "${X2:-0}" != 1 ] || ARGS+=(--upscale-vae "$X2_VAE")
+if [ "$ENGINE" = fasth3 ]; then
+  # which engine runs the passes, and why
+  ZIG_ENGINE="${ZIG_ENGINE:-$PREFIX/zig-engine}"; WHY=""
+  [ -x "$ZIG_ENGINE/tf-h3-dit" ] && [ -f "$PREFIX/zig_fasth3.py" ] || WHY="the native engine is not installed"
+  [ -n "$WHY" ] || sysctl -n machdep.cpu.brand_string 2>/dev/null | grep -Eq 'Apple M([5-9]|[1-9][0-9])' || WHY="this chip has no tensor units"
+  [ -n "$WHY" ] || [ -z "${FIRST_FRAME:-}" ] || WHY="the native engine is text to video only"
+  [ -n "$WHY" ] || [ -z "${AUDIO_SHIFT:-}${EXTRA:-}" ] || WHY="AUDIO_SHIFT and EXTRA are MLX options"
+  case "${FASTH3_ENGINE:-auto}" in
+    mlx) WHY="FASTH3_ENGINE=mlx";;
+    zig) [ -z "$WHY" ] || { echo "FASTH3_ENGINE=zig, but $WHY" >&2; exit 2; };;
+    auto) ;;
+    *) echo "FASTH3_ENGINE is zig or mlx, got $FASTH3_ENGINE" >&2; exit 2;;
+  esac
+  if [ -z "$WHY" ]; then
+    ZARGS=("$H3_MODEL_DIR" --fasth3 "$FASTH3_DIR" --engine "$ZIG_ENGINE" -o "$OUT" --width "$W" --height "$H"
+           --frames "${FRAMES:-124}" --seed "${SEED:-0}" --steps "$STEPS")
+    [ "${X2:-0}" != 1 ] || ZARGS+=(--upscale-vae "$X2_VAE")
+    [ -z "${CROP:-}" ] || ZARGS+=(--crop "$CROP")
+    if [ -n "${PROMPT_FILE:-}" ]; then ZARGS+=(--prompt-file "$PROMPT_FILE"); else ZARGS+=(--prompt "$PROMPT"); fi
+    exec "$PREFIX/venv/bin/python" "$PREFIX/zig_fasth3.py" "${ZARGS[@]}"
+  fi
+  echo "[tensorfold] engine: mlx ($WHY)"
+fi
 [ "$ADAPTER" = none ] || ARGS+=(--lora "$ADAPTER")
 [ -z "${AUDIO_SHIFT:-}" ] || ARGS+=(--audio-shift "$AUDIO_SHIFT")
 [ -z "${FIRST_FRAME:-}" ] || ARGS+=(--first-frame "$FIRST_FRAME")

@@ -53,13 +53,22 @@ QUALITIES = {
     "fast": ("Fast: Turbo 3 passes, adapter sound", {"POINTS": "4", "REVOICE": "0"}),
     "fh8": ("FastH3: 8 passes, sparse attention", {"ENGINE": "fasth3", "STEPS": "8"}),
     "fh4": ("FastH3: 4 passes, fastest and softer", {"ENGINE": "fasth3", "STEPS": "4"}),
-    "fh20": ("FastH3: 20 passes, most texture", {"ENGINE": "fasth3", "STEPS": "20"}),
+    "fh20": ("FastH3: 20 passes, for prompts with several actions", {"ENGINE": "fasth3", "STEPS": "20"}),
 }
 SCOUT_SIZES = {"draft": (1344, 768), "2k": (1024, 576), "qhd": (1280, 736), "small": (864, 480),
                "native": (1344, 768), "p720": (1280, 736), "p960": (864, 480)}
 # measured on a Mac Studio M5 Ultra, 8 second clips, standard quality, image step included (README)
 MEASURED_8S = {"draft": 108, "2k": 299, "qhd": 635, "small": 174, "native": 709}
-# FastH3, 5 second text-to-video clips, measured on the same machine: quality -> preset -> seconds
+# FastH3 text to video on the native engine (TensorFold 1.0's Zig + Metal runtime), 5 second clips, same machine.
+ZIG_ENGINE = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio")) / "zig-engine"
+# Measured through this app: 480p at 4, 8 and 20 passes (43, 66, 129 s) and 720p at 8 passes (199 to 217 s). The
+# other cells are those plus the measured pass time (5.3 s at 480p, 20 s at 720p) and about 10 s for the 2x decoder.
+ZIG_FASTH3_5S = {"fh4": {"small": 43, "p960": 53, "p720": 125, "qhd": 137},
+                 "fh8": {"small": 66, "p960": 76, "p720": 205, "qhd": 217},
+                 "fh20": {"small": 129, "p960": 139, "p720": 445, "qhd": 457}}
+ZIG_LENGTH_POWER = 0.95  # a 10 second 720p clip took 388 s against about 205 s for 5 seconds
+# FastH3 on the MLX engine (any clip that starts from an image, and machines without the native engine):
+# 5 second text-to-video clips, measured on the same machine: quality -> preset -> seconds
 FASTH3_5S = {"fh4": {"small": 51, "p960": 61, "p720": 112, "qhd": 123},
              "fh8": {"small": 78, "p960": 88, "p720": 192, "qhd": 203},
              "fh20": {"small": 174, "p960": 184, "p720": 434, "qhd": 445}}
@@ -125,10 +134,25 @@ def plan(total: int, piece: int = LONGEST) -> list[int]:
     return pieces
 
 
-def estimate(preset: str, quality: str, seconds: int) -> int | None:
+def zig_ready() -> bool:
+    """Whether FastH3 text to video will run on the native engine here (scripts/video.sh decides the same way)."""
+
+    if not (ZIG_ENGINE / "tf-h3-dit").is_file() or os.environ.get("FASTH3_ENGINE") == "mlx":
+        return False
+    try:
+        chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout
+    except OSError:
+        return False
+    return re.search(r"Apple M([5-9]|[1-9][0-9])", chip) is not None
+
+
+def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -> int | None:
     if seconds > LONGEST:
+        # every part after the first opens on a frame, so a chain is timed on the MLX engine
         parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
         return None if None in parts else int(sum(parts) + 2 * len(parts))
+    if text_only and zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
+        return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER)
     if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
         return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
     if quality.startswith("fh"):
@@ -239,6 +263,7 @@ def export(job: dict) -> None:
 
 
 STEP = re.compile(r"\[tensorfold\] (step|voice) (\d+)/(\d+)")
+RAN_ON = re.compile(r"\[tensorfold\] engine: (\w+)")
 
 
 def run(job: dict, command: list[str], env: dict, label: str = "") -> bool:
@@ -249,6 +274,9 @@ def run(job: dict, command: list[str], env: dict, label: str = "") -> bool:
     running.update(process=process, id=job["id"])
     for line in process.stdout:
         job["log"] = (job["log"] + line)[-20000:]
+        engine = RAN_ON.search(line)
+        if engine:
+            job["engine"] = engine.group(1)
         found = STEP.search(line)
         if found:
             kind, at, total = found.group(1), int(found.group(2)), int(found.group(3))
@@ -364,7 +392,7 @@ threading.Thread(target=work, daemon=True).start()
 
 def public(job: dict) -> dict:
     out = {k: job.get(k) for k in ("id", "kind", "status", "title", "outputs", "progress", "error", "created",
-                                    "started", "finished", "estimate")}
+                                    "started", "finished", "estimate", "engine")}
     out["log"] = job["log"][-3000:]
     out["params"] = {k: v for k, v in job["params"].items() if k != "clips"}
     return out
@@ -374,7 +402,8 @@ def public(job: dict) -> dict:
 def state() -> dict:
     return {"presets": {k: {"label": v[0], "size": v[1]} for k, v in PRESETS.items()},
             "qualities": {k: v[0] for k, v in QUALITIES.items()}, "durations": DURATIONS, "long": LONG,
-            "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip()}
+            "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip(),
+            "zig": zig_ready()}
 
 
 @app.post("/api/compose")
@@ -385,7 +414,7 @@ def compose_prompt(body: dict) -> dict:
 @app.post("/api/estimate")
 def estimate_time(body: dict) -> dict:
     return {"seconds": estimate(body.get("preset", "draft"), body.get("quality", "standard"),
-                                int(body.get("seconds", 5)))}
+                                int(body.get("seconds", 5)), bool(body.get("text_only")))}
 
 
 @app.post("/api/jobs")
@@ -408,7 +437,9 @@ def submit(body: dict) -> dict:
     job = {"id": job_id, "kind": kind, "status": "queued", "title": body.get("title") or kind, "params": params,
            "outputs": [], "progress": None, "error": None, "log": "", "created": time.time(), "started": None,
            "finished": None, "estimate": estimate(params.get("preset", ""), params.get("quality", "standard"),
-                                                  int(params.get("total_seconds") or params.get("seconds", 5)))
+                                                  int(params.get("total_seconds") or params.get("seconds", 5)),
+                                                  kind == "video" and not params.get("image")
+                                                  and not params.get("first_frame_from"))
            if kind in ("video", "studio", "long") else None}
     with lock:
         jobs[job_id] = job

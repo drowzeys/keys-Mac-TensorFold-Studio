@@ -68,12 +68,18 @@ any time to come back. Drag it to the Dock to keep it there.
 ![Text to video with FastH3](samples/ui_create_fasth3.png)
 
 1. **The prompt goes to:** Video with sound. **The clip starts from:** Text only.
-2. **Video engine:** FastH3 for speed. **Passes:** 8 (4 is faster and a little softer, 20 slower with more texture).
+2. **Video engine:** FastH3 for speed. **Passes:** 8 (4 is faster and a little softer; 20 is slower and is the one to
+   pick when the prompt has several distinct actions). The bar under the cards says which engine will run: text to
+   video uses the native Zig engine on an M5.
 3. **Resolution:** 480p or 720p. Turn on **2x upscale** for 1728x960 or 2560x1440.
 4. **Length** and **Seed**, then describe the picture and what happens. *Next*.
 5. Step 3: add spoken lines and the soundscape if you want them. Step 4: read the prompt. Step 5: **Queue this clip**.
 
-On the M5 Ultra a 5 second clip takes 51 s (4 passes) or 78 s (8) at 480p, 112 s or 192 s at 720p; 2x adds 10 s.
+On the M5 Ultra with the native engine a 5 second clip takes 43 s (4 passes), 66 s (8) or 129 s (20) at 480p, and
+about 200 s at 720p with 8 passes; a 10 second 720p clip takes about 6½ minutes. 2x adds about 10 s.
+
+If a clip leaves out part of the action, render it again at 20 passes. If the model reads something into the
+prompt that you did not ask for, say so in the prompt ("unarmed hikers, no weapons").
 
 ## 5. Make an image only
 
@@ -127,3 +133,4 @@ FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens" out.mp4
 | The app says it did not start | read `~/Library/Logs/TensorFoldStudio.log`; often another program holds port 7870 (`PORT=7871 bash scripts/make-app.sh`) |
 | A job fails | open its **Log** in the queue; the last lines say why |
 | Very slow renders | check the chip is M5-family and nothing else is using the GPU |
+| The job says "MLX engine" for FastH3 | expected when the clip starts from an image; for text to video, run `bash oneshot-setup.sh --fasth3 --verify` and look for the `tf-h3-dit` line |

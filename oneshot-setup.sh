@@ -24,11 +24,13 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
+# the native engine for FastH3: TensorFold 1.0.2's Zig + Metal runtime with the H3 family, from the same fork
+ZIG_COMMIT="2dc7bc1998c9be51ea74ccaef22dec7a8107b086"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
 MFLUX_COMMIT="add5164e62c07cbcc9aec7a95c2e19c75605880c"
 H3_ADAPTER_NAME="lightx2v_v1.0_768p_ourlayout.safetensors"
@@ -94,7 +96,7 @@ if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_EN
   uv pip install -q --reinstall-package tensorfold -p "$PREFIX/venv/bin/python" -r "$HERE/requirements.lock" \
     "${TF_SPEC[@]}" "mflux @ git+$MFLUX_REPO@$MFLUX_COMMIT"
 fi
-cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$PREFIX/"
+cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$HERE/zig_fasth3.py" "$PREFIX/"
 "$PREFIX/venv/bin/python" - <<'EOF' || die "the installed TensorFold lacks the H3 or Qwen-Image family"
 import importlib.metadata as m
 import mlx.core as mx
@@ -179,6 +181,32 @@ if [ "$VIDEO" = 1 ]; then
         --local-dir "$FASTH3_DIR"
     fi
     ok "FastH3 at $FASTH3_DIR ($(du -shL "$FASTH3_DIR/transformer" | cut -f1)): bash scripts/fast.sh \"a prompt\" out.mp4"
+
+    step "Native engine for FastH3: TensorFold 1.0 Zig + Metal runtime @ ${ZIG_COMMIT:0:8} -> $PREFIX/zig-engine"
+    ZIG_ENGINE="$PREFIX/zig-engine"
+    if [ "$(cat "$ZIG_ENGINE/COMMIT" 2>/dev/null)" != "$ZIG_COMMIT" ] || [ ! -x "$ZIG_ENGINE/tf-h3-dit" ]; then
+      if [ "$MODE" = "--verify" ]; then
+        echo "  ! the native engine is not installed: FastH3 runs on the MLX engine"
+      else
+        # carrier payload first, then a build from source, else the MLX engine stays in use
+        engine_ok() { [ "$(cat "$HERE/payload/zig-engine/COMMIT" 2>/dev/null)" = "$ZIG_COMMIT" ] && ( cd "$HERE/payload/zig-engine" && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1 ); }
+        engine_ok || { mkdir -p "$HERE/payload"; fetch_ghcr >/dev/null 2>&1 || true; }
+        if ! engine_ok && command -v zig >/dev/null && xcrun -sdk macosx metal -v >/dev/null 2>&1; then
+          echo "  no carrier payload for the engine; building from source"
+          ZIG_COMMIT="$ZIG_COMMIT" TF_REPO="$TF_REPO" bash "$HERE/scripts/build-zig-engine.sh" | sed 's/^/  /' || true
+        fi
+        if engine_ok; then
+          rm -rf "$ZIG_ENGINE"; cp -R "$HERE/payload/zig-engine" "$ZIG_ENGINE"; chmod +x "$ZIG_ENGINE/tf-h3-dit"
+          ln -sfn ../h3_generate.py "$ZIG_ENGINE/h3_generate_dev.py"
+        else
+          echo "  ! no native engine (no carrier payload, and a source build needs zig 0.17 and Xcode's Metal toolchain): FastH3 runs on the MLX engine"
+        fi
+      fi
+    fi
+    if [ -x "$ZIG_ENGINE/tf-h3-dit" ]; then
+      case "$CHIP" in *M[5-9]*) ok "tf-h3-dit @ $(cut -c1-8 "$ZIG_ENGINE/COMMIT"): FastH3 text to video runs on the native engine";;
+        *) ok "tf-h3-dit installed, but $CHIP has no tensor units: FastH3 runs on the MLX engine";; esac
+    fi
   fi
 fi
 

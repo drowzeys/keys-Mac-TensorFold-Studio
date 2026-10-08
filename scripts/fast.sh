@@ -1,11 +1,13 @@
 #!/bin/bash
-# Text to video with FastH3 (FastVideo's distilled MiniMax H3) on TensorFold's tile-sparse attention kernel.
+# Text to video with FastH3 (FastVideo's distilled MiniMax H3). On an M5 with the native engine installed the passes
+# run on TensorFold 1.0's Zig + Metal runtime; otherwise on the MLX engine's tile-sparse attention kernel.
 #   bash scripts/fast.sh "a prompt" out.mp4                      # 480p, 8 passes
 #   STEPS=4 bash scripts/fast.sh "a prompt" out.mp4              # 4, 8 or 20 passes
 #   RES=720p bash scripts/fast.sh "a prompt" out.mp4             # 1280x720
 #   UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4            # 480p generated, 2x decoder -> 1728x960
 #   RES=720p UPSCALE=1 bash scripts/fast.sh "a prompt" out.mp4   # 720p generated, 2x decoder -> 2560x1440 (2K)
-# Environment: STEPS (4, 8 or 20; default 8: what the checkpoint was trained for), RES (480p or 720p), UPSCALE (1 for
+# Environment: STEPS (4, 8 or 20; default 8: what the checkpoint was trained for; 20 for prompts with several
+# actions), FASTH3_ENGINE (zig or mlx, to force one), RES (480p or 720p), UPSCALE (1 for
 # the 2x decoder), FRAMES (17n+5; 124 is 5 s), SEED, PROMPT_FILE, FASTH3_DIR, and what scripts/video.sh takes.
 # FIRST_FRAME=image.png starts the clip from an image; for Qwen image -> FastH3 video in one go use
 #   ENGINE=fasth3 STEPS=8 WIDTH=864 HEIGHT=480 bash scripts/studio.sh "the picture" "what happens" out.mp4

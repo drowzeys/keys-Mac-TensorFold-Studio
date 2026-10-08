@@ -10,7 +10,7 @@
 # X2=1 generates the video at half of WIDTH and HEIGHT and decodes it at 2x (multiples of 64, up to 2688x1536); the
 # image is made at full size unless IMAGE_WIDTH and IMAGE_HEIGHT say otherwise. QHD=1 is the 2560x1440 preset and
 # TWOK=1 the faster 2048x1152 one. ENGINE=fasth3 STEPS=4|8|20 animates the image with FastH3 instead of the Turbo
-# adapter (see scripts/fast.sh).
+# adapter (see scripts/fast.sh); starting from an image, FastH3 runs on the MLX engine.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_PROMPT="${1:-}"; VIDEO_PROMPT="${2:-}"; OUT="${3:-outputs/studio.mp4}"

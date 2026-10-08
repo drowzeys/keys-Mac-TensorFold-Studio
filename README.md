@@ -10,10 +10,19 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**1.9** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families:
+**2.0** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
+and TensorFold **1.0**'s native Zig runtime for FastH3:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **2.0 (2026-10-08): FastH3 text to video runs on TensorFold 1.0's native Zig + Metal engine.** Thank you to
+> **Ash Hart** for the TensorFold 1.0 runtime and to **FastVideo / Hao AI Lab** for FastH3. Every transformer pass of
+> a FastH3 text-to-video clip now runs in a small native program with no MLX in the loop: **5.33 s a pass against
+> 7.12 s** on the MLX engine at 864x480, 124 frames, and a 10 second 1280x720 clip in **388 s**. Prompt encoding and
+> the video and audio decoders are still Python. Image generation, the Turbo adapter path and FastH3 clips that
+> start from an image are unchanged, on the MLX engine. `oneshot-setup.sh` installs the engine from the prebuilt
+> carrier; nothing else changes in how you use the studio. See [The native engine](#the-native-engine-new-in-20).
+>
 > **1.9 (2026-10-07): a restyled web app with every choice on one screen, a one-click Mac app, and long videos.**
 > Pick where the prompt goes (video or image only), the engine, passes, resolution, 2x upscale and a length from 5 s
 > to 30 min (chained 15 s clips); `bash scripts/make-app.sh` builds a double-clickable app. See
@@ -75,8 +84,8 @@ and roughly how long it takes.
 |---|---|
 | **The prompt goes to** | *Video with sound*, or *Image only*: Qwen-Image-2.1 makes the pictures and stops there. |
 | **The clip starts from** | *Text only*; *a Qwen scout image* (step 2 makes several, you pick one); or *your own image* (step 2 uploads it). |
-| **Video engine** | *FastH3*: fastest. *MiniMax H3*: the Turbo adapter with the sound made again by the base model, or the full 20 steps. |
-| **Passes** (FastH3) | 4 (fastest, a little softer), 8 (what it was trained for), 20 (slowest, most texture). |
+| **Video engine** | *FastH3*: fastest; text to video runs on the native Zig engine, and the bar under the cards says which engine a clip will use. *MiniMax H3*: the Turbo adapter with the sound made again by the base model, or the full 20 steps. |
+| **Passes** (FastH3) | 4 (fastest, a little softer), 8 (what it was trained for), 20 (for prompts with several actions; slowest). |
 | **Quality** (MiniMax H3) | Turbo 5 + base sound (the standard), Turbo 3, 20 steps with the fast recipe, or plain 20 steps. |
 | **Resolution** | 480p (864x480), 720p (1280x720), or the fixed outputs Draft, 2K 2048x1152 and Native 1344x768. |
 | **2x upscale** | For 480p and 720p: the 2x decoder turns 480p into 1728x960 and 720p into 2560x1440, for about 10 s more. |
@@ -185,6 +194,58 @@ frames) takes 478 s at 8 passes, against 2,183 s with FastVideo's own Metal kern
   94 s. The first-frame rows join the rows every video tile always attends to. Not tested widely.
 - The sound is FastH3's own; the base-model audio step is not applied here.
 - FastH3 weights are a derivative of MiniMax H3 under the MiniMax H3 Community License.
+
+## The native engine (new in 2.0)
+
+**Credit first: Ash Hart and the TensorFold contributors** wrote the TensorFold 1.0 runtime this uses (Zig driving
+Metal directly, Apache-2.0), and **FastVideo / Hao AI Lab** made FastH3. What this pack adds is an H3 family for that
+runtime: FastH3's block stack, its tile-routed attention and its int8 kernels for the M5 tensor units.
+
+| What | Where it runs |
+|---|---|
+| FastH3 text to video: all transformer passes (rows in, 50 blocks, routing, attention, both output heads) | `tf-h3-dit`, the native Zig + Metal program |
+| Prompt encoding, the checkpoint's small projections and timestep tables | Python (MLX), once per clip |
+| Video decoder, audio decoder, MP4 | Python (MLX), as before |
+| FastH3 from a first frame (a Qwen scout or your own image), and every part of a long chain after the first | MLX engine: the native family has no first-frame rows yet |
+| Qwen-Image-2.1, the Turbo adapter path, the 20-step path, the base-model audio step | MLX engine, unchanged |
+
+`scripts/video.sh` picks the native engine for a FastH3 clip when it is installed, the chip has tensor units (M5 or
+later) and the clip is text to video; it prints `[tensorfold] engine: zig` or `engine: mlx (why)`, and the web app
+shows the same on the job. `FASTH3_ENGINE=mlx` or `zig` forces one.
+
+Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), FastH3 text to video with sound, one run each, whole
+command including export and decode unless a row says per pass:
+
+| Clip | Native engine | MLX engine |
+|---|---:|---:|
+| 864x480, 124 frames, per pass | 5.33 s | 7.12 s |
+| 864x480, 5 s, 4 passes | 43 s | 51 s |
+| 864x480, 5 s, 8 passes | 66 s | 78 s |
+| 864x480, 5 s, 20 passes | 129 s | 174 s |
+| 1280x720, 5 s, 8 passes | 199 s | 259 s |
+| 1280x720, 10 s (243 frames), 8 passes | 388 s | about 480 s (53 s a pass; not re-run) |
+| 1280x720, 10 s (243 frames), 20 passes | about 950 s (45 s a pass plus export and decode) | not run |
+
+The two 1280x720, 5 s figures come from one sitting with another job using the machine on and off, so both are
+slower than a quiet run would be (the MLX figure was 192 s when first measured); read them as a ratio.
+
+- **Quality.** The native engine and the MLX engine both use int8 arithmetic and agree with a float reference to the
+  same degree on the first pass (video cosine 0.961 and 0.966). The same seed gives the same shot with different
+  details, not the same pixels. The clips were judged by eye by the pack's owner; the native engine's attention
+  weights are 8-bit.
+- **20 passes** is the setting to reach for when a prompt has several distinct actions: in two tests it brought in
+  action the 8-pass clip had skipped and removed an object glitch. It is not a setting FastVideo trained.
+- **Sizes.** The routing cuts the video into tiles of 4x4x4 tokens (128 pixels a side, 17 frames deep). A size that
+  is not whole tiles is padded inside the attention. Rounding the size up instead is not faster at the same length
+  (896x512 took 5.75 s a pass against 5.33 s for 864x480 at 124 frames), so the studio generates the size you ask
+  for. Lengths of 107, 175, 243 and 311 frames are whole tiles in time; 243 is the 10 second choice.
+- **Not in the native engine yet:** first-frame rows, the prompt encoder, the decoders, Qwen-Image. A Qwen-Image
+  transformer for the same runtime exists in the fork and is level with the MLX one (0.483 s against 0.477 s a pass
+  at 1344x768), so the studio keeps the MLX one.
+- **Install.** `oneshot-setup.sh` copies the engine from the carrier image's payload (a 0.7 MB program, its Metal
+  kernels inside it, compiled when it starts). Without Docker it builds from source if `zig` 0.17 and Xcode's Metal
+  toolchain are present (`scripts/build-zig-engine.sh`); with neither, FastH3 stays on the MLX engine and everything
+  still works.
 
 ## How it works
 
@@ -385,9 +446,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9
-# index digest sha256:7dfb436feda8bb3fbd2b77e31c786912edc6bc3243568265f4fb324f615b92ba (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0
+# index digest: DIGEST_2_0 (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
@@ -400,6 +461,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
 | Engine | TensorFold 0.6.5 (`609ca419`) + twelve commits, `drowzeys/TensorFold` branch `studio` @ `a2068c031e08109a0ec14c26b1ca655cf50ac34c` (Apache-2.0) |
+| Native engine (FastH3 text to video) | TensorFold 1.0.2's Zig + Metal runtime + an H3 family, `drowzeys/TensorFold` branch `h3-speed` @ `2dc7bc1998c9be51ea74ccaef22dec7a8107b086`; built with Zig 0.17 |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |

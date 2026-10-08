@@ -1,7 +1,7 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:1.9` (not a runtime; TensorFold wheel + lock + render scripts)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
@@ -37,6 +37,13 @@ Do these in order on the person's Mac, and report each result plainly.
 
 The app is a launcher around this clone, unsigned and built locally, so Gatekeeper does not block it. Do not move
 the clone afterwards without rebuilding the app. Do not sign, notarize or redistribute the built app.
+
+Native engine (2.0): FastH3 text to video runs its passes in `$PREFIX/zig-engine/tf-h3-dit` (TensorFold 1.0 Zig +
+Metal runtime, fork branch `h3-speed`), driven by `zig_fasth3.py`; `scripts/video.sh` chooses it on an M5 when the
+clip has no first frame and prints `[tensorfold] engine: zig|mlx (why)`. `FASTH3_ENGINE=mlx|zig` forces one. Clips
+from an image, image generation and the Turbo path are MLX. Do not apply the base-model audio step to FastH3 clips:
+the owner compared it by ear and chose FastH3's own sound. Use 20 passes when a prompt has several actions.
+`scripts/build-zig-engine.sh` builds the payload on a Mac (zig 0.17); never commit the binary.
 
 FastH3 and long videos: `scripts/fast.sh` (STEPS=4|8|20, RES=480p|720p, UPSCALE=1); `ENGINE=fasth3` works with
 `studio.sh` and `FIRST_FRAME` too, though FastVideo trained it on text to video only. Videos over 15 s are chains of
