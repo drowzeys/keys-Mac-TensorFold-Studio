@@ -81,6 +81,15 @@ if [ "$ENGINE" = fasth3 ]; then
     if [ -n "${PROMPT_FILE:-}" ]; then ZARGS+=(--prompt-file "$PROMPT_FILE"); else ZARGS+=(--prompt "$PROMPT"); fi
     exec "$PREFIX/venv/bin/python" "$PREFIX/zig_fasth3.py" "${ZARGS[@]}"
   fi
+  # On a chip without tensor units the MLX engine cannot use the int8 kernels and would hold the whole checkpoint
+  # in bfloat16 (64 GiB). With the 8-bit weights written by fasth3_q8.py it holds half of that (FASTH3_Q8=0 or 1
+  # forces the choice). FastVideo's SIMD-group routing is the faster of its two forms there.
+  Q8="${FASTH3_Q8:-auto}"
+  if [ "$Q8" = auto ]; then Q8=0; [ -f "$FASTH3_DIR/transformer-q8/q8.json" ] && [ "$WHY" = "this chip has no tensor units" ] && Q8=1; fi
+  if [ "$Q8" = 1 ]; then
+    [ -f "$FASTH3_DIR/transformer-q8/q8.json" ] || { echo "no 8-bit weights at $FASTH3_DIR/transformer-q8 (run oneshot-setup.sh, or $PREFIX/venv/bin/python $PREFIX/fasth3_q8.py convert $FASTH3_DIR)" >&2; exit 2; }
+    ARGS+=(--fasth3-q8 --vsa-impl simd); WHY="$WHY, 8-bit weights"
+  fi
   echo "[tensorfold] engine: mlx ($WHY)"
 fi
 [ "$ADAPTER" = none ] || ARGS+=(--lora "$ADAPTER")

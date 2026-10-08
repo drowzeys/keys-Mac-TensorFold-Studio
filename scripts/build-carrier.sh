@@ -8,14 +8,14 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio}"
-TAG="${TAG:-2.1}"
+TAG="${TAG:-2.2}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 cd "$HERE"
 mkdir -p payload
 python3 -m pip wheel --no-deps -q -w payload "tensorfold @ git+$TF_REPO@$TF_COMMIT"
-cp requirements.lock h3_generate.py qwen_image_generate.py zig_fasth3.py payload/
-( cd payload && shasum -a 256 tensorfold-*.whl requirements.lock h3_generate.py qwen_image_generate.py zig_fasth3.py > SHA256SUMS )
+cp requirements.lock h3_generate.py qwen_image_generate.py zig_fasth3.py fasth3_q8.py payload/
+( cd payload && shasum -a 256 tensorfold-*.whl requirements.lock h3_generate.py qwen_image_generate.py zig_fasth3.py fasth3_q8.py > SHA256SUMS )
 if [ -x payload/zig-engine/tf-h3-dit ]; then ( cd payload/zig-engine && shasum -a 256 -c SHA256SUMS ) || { echo "payload/zig-engine does not match its checksums" >&2; exit 1; }
 else echo "NOTE: no payload/zig-engine: this carrier will not hold the native engine" >&2; fi
 cat payload/SHA256SUMS

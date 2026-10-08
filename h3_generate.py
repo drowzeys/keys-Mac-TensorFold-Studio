@@ -267,6 +267,8 @@ def main():
     parser.add_argument("--upscale-vae", help="safetensors of a packed-head (2x) video decoder; frames come out larger")
     parser.add_argument("--crop", help="WxH: centre-crop the decoded frames before the MP4 is written")
     parser.add_argument("--fasth3", help="a FastH3 checkpoint folder: its transformer, schedule and routed attention")
+    parser.add_argument("--fasth3-q8", action="store_true",
+                        help="with --fasth3: the 8-bit weights written by fasth3_q8.py, for chips without tensor units")
     parser.add_argument("--vsa-impl", default="tensor", choices=("tensor", "reference", "simd"),
                         help="routed attention: our int8 tile kernel, or FastVideo's reference or SIMD-group forms")
     parser.add_argument("--fasth3-steps", type=int, default=0, metavar="N",
@@ -313,7 +315,16 @@ def main():
     if args.fasth3:
         from tensorfold.families.h3 import fasth3
 
-        dit, gates, fast = fasth3.load_fasth3(args.fasth3)
+        if args.fasth3_q8:
+            import fasth3_q8
+
+            dit, gates, fast = fasth3_q8.load(args.fasth3)
+            # the blocks' weights are MLX quantized layers now; the int8 tensor-unit kernels do not apply to them
+            args.int8_mlp = args.int8_qkv = args.int8_out = False
+            mx.set_cache_limit(8 * 2**30)  # room for reuse without the default tens of GiB; 4 GiB cost a third in speed
+            print("[tensorfold] FastH3 with 8-bit weights (MLX quantized layers)", flush=True)
+        else:
+            dit, gates, fast = fasth3.load_fasth3(args.fasth3)
         print(f"[tensorfold] FastH3: {fast.forwards} forwards, video shift {fast.video_shift}, sparsity "
               f"{fast.sparsity}, tile {fast.tile}, task {fast.task}", flush=True)
     else:

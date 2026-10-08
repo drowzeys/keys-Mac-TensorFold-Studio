@@ -152,6 +152,13 @@ def zig_ready() -> bool:
     return re.search(r"Apple M([5-9]|[1-9][0-9])", chip) is not None
 
 
+try:
+    M5 = re.search(r"Apple M([5-9]|[1-9][0-9])", subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"],
+                                                               capture_output=True, text=True).stdout) is not None
+except OSError:
+    M5 = False
+
+
 def turbo_ready() -> bool:
     """Whether MiniMax H3's own transformer and its Turbo adapter are installed (oneshot-setup.sh --turbo).
 
@@ -169,6 +176,8 @@ def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -
         return None if None in parts else int(sum(parts) + 2 * len(parts))
     if zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
         return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER[preset] * (1.0 if text_only else ZIG_FROM_IMAGE))
+    if quality.startswith("fh") and not M5:
+        return None  # FastH3 on an earlier chip runs with 8-bit weights on the MLX engine; no time is measured there
     if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
         return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
     if quality.startswith("fh"):

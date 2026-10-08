@@ -1,7 +1,7 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
@@ -21,7 +21,7 @@ FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4
 Do these in order on the person's Mac, and report each result plainly.
 
 1. Check the machine: `uname -m` is `arm64`, `sysctl -n machdep.cpu.brand_string` names an M5-family chip (others run
-   without the int8 kernels, far slower: say so and ask before continuing), memory is 64 GB or more on an M5-family chip (96 GB on earlier chips; 128 GB if they want `--turbo`), and
+   without the int8 kernels, far slower: say so and ask before continuing), memory is 64 GB or more (128 GB if they want `--turbo`; on an M1 to M4 say plainly that video will be much slower than on an M5, and that it is untested there), and
    `df -h ~` shows 185 GB free (250 GB with `--turbo`). Stop and report if memory or disk falls short.
 2. `brew install python@3.11 uv ffmpeg` (install Homebrew first only with the person's agreement).
 3. Tell the person the download sizes and licenses before starting: Qwen-Image-2.1 33 GB (Qwen Research License,

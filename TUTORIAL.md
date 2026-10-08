@@ -11,7 +11,7 @@ seconds to 30 minutes, at 480p up to 2K.
 | Need | Why |
 |---|---|
 | Apple silicon with an **M5-family** chip | the fast kernels use its tensor units; other chips run far slower |
-| **64 GB** memory or more | a FastH3 clip peaks near 32 GB; 96 GB on chips older than M5; 128 GB for the optional MiniMax H3 Turbo |
+| **64 GB** memory or more | a FastH3 clip peaks near 32 GB on an M5, near 40 GB on an M1 to M4 (8-bit weights, much slower); 128 GB for the optional MiniMax H3 Turbo |
 | **185 GB** free disk (250 GB with Turbo) | model weights: 31 GB image, 65 GB FastH3, 72 GB text encoder and decoders |
 | Homebrew | to install Python 3.11, uv and ffmpeg |
 

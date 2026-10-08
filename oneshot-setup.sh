@@ -9,8 +9,8 @@
 #   bash oneshot-setup.sh --no-render   # install and fetch only
 #   bash oneshot-setup.sh --verify      # check an existing install, no downloads, no render
 #
-# Memory: 48 GB for --image-only; 64 GB for the default install on an M5-family chip (96 GB on earlier chips, which
-# run FastH3 on the MLX engine); 128 GB with --turbo. Disk: 33 GB, 175 GB and 240 GB.
+# Memory: 48 GB for --image-only; 64 GB for the default install (M1 to M4 run FastH3 on the MLX engine with 8-bit
+# weights, 37 GB more on disk, much slower than an M5); 128 GB with --turbo. Disk: 33 GB, 175 GB and 240 GB.
 # Engine payload order: this clone's ./payload -> GHCR carrier image -> release download -> git at the pinned commit.
 # Installs into its own venv ($PREFIX, default ~/.local/opt/tensorfold-studio). Touches nothing else.
 # Weights: $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1, 33 GB), $FASTH3_DIR (default
@@ -25,7 +25,7 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
@@ -68,8 +68,10 @@ ok "$CHIP, macOS $(sw_vers -productVersion), ${RAM} GB"
 # an install that already holds MiniMax H3's transformer and the Turbo adapter keeps them
 [ "$VIDEO" = 0 ] || { ls "$H3_MODEL_DIR"/FL2VA/transformer/*.safetensors >/dev/null 2>&1 && [ -f "$PREFIX/adapters/$H3_ADAPTER_NAME" ] && TURBO=1; } || true
 # Peak memory measured on an M5 Ultra: image 28 GiB; FastH3 on the native engine 32 GiB (the passes; the text encoder
-# runs a layer at a time); FastH3 on the MLX engine 67 GiB; MiniMax H3 Turbo 103 GiB while its adapter is merged.
-case "$CHIP" in *M[5-9]*) FAST_NEED=64;; *) FAST_NEED=96;; esac
+# runs a layer at a time); FastH3 on the MLX engine 64 GiB in bfloat16 and 45 GiB with 8-bit weights; MiniMax H3
+# Turbo 103 GiB while its adapter is merged.
+# A chip without tensor units runs FastH3 on the MLX engine with 8-bit weights (fasth3_q8.py): 45 GiB instead of 64.
+FAST_NEED=64
 if [ "$VIDEO" = 0 ]; then NEED=48; elif [ "$TURBO" = 1 ]; then NEED=128; else NEED=$FAST_NEED; fi
 [ "$RAM" -ge "$NEED" ] || die "needs ${NEED} GB+ unified memory for this install$([ "$TURBO" = 1 ] && [ "$RAM" -ge "$FAST_NEED" ] && echo " (without --turbo it needs ${FAST_NEED} GB)") (measured on 256 GB only)"
 case "$CHIP" in *M5*) ok "M5: int8 kernels on the tensor units";;
@@ -105,7 +107,7 @@ if [ ! -x "$PREFIX/venv/bin/python" ] || ! "$PREFIX/venv/bin/python" -c "$HAS_EN
   uv pip install -q --reinstall-package tensorfold -p "$PREFIX/venv/bin/python" -r "$HERE/requirements.lock" \
     "${TF_SPEC[@]}" "mflux @ git+$MFLUX_REPO@$MFLUX_COMMIT"
 fi
-cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$HERE/zig_fasth3.py" "$PREFIX/"
+cp "$HERE/h3_generate.py" "$HERE/qwen_image_generate.py" "$HERE/zig_fasth3.py" "$HERE/fasth3_q8.py" "$PREFIX/"
 "$PREFIX/venv/bin/python" - <<'EOF' || die "the installed TensorFold lacks the H3 or Qwen-Image family"
 import importlib.metadata as m
 import mlx.core as mx
@@ -189,7 +191,8 @@ if [ "$VIDEO" = 1 ]; then
 
   if true; then
     step "FastH3 8-Step V2 transformer (70 GB) -> $FASTH3_DIR"
-    if ! ls "$FASTH3_DIR"/transformer/diffusion_pytorch_model-00014-of-00014.safetensors >/dev/null 2>&1; then
+    if ! ls "$FASTH3_DIR"/transformer/diffusion_pytorch_model-00014-of-00014.safetensors >/dev/null 2>&1 \
+       && [ ! -f "$FASTH3_DIR/transformer-q8/q8.json" ]; then
       [ "$MODE" = "--verify" ] && die "no FastH3 transformer at $FASTH3_DIR"
       echo "  FastH3 is a derivative of MiniMax H3 under the MiniMax H3 Community License. Read it first:"
       echo "  https://huggingface.co/$FASTH3_REPO"
@@ -198,6 +201,18 @@ if [ "$VIDEO" = 1 ]; then
         --local-dir "$FASTH3_DIR"
     fi
     ok "FastH3 at $FASTH3_DIR ($(du -shL "$FASTH3_DIR/transformer" | cut -f1)): bash scripts/fast.sh \"a prompt\" out.mp4"
+
+    case "$CHIP" in *M[5-9]*) ;; *)
+      step "8-bit FastH3 weights for a chip without tensor units (37 GB, written once) -> $FASTH3_DIR/transformer-q8"
+      if [ ! -f "$FASTH3_DIR/transformer-q8/q8.json" ]; then
+        [ "$MODE" = "--verify" ] && die "no 8-bit FastH3 weights at $FASTH3_DIR/transformer-q8"
+        PYTHONPATH="$PREFIX/minimax-h3-mlx" "$PREFIX/venv/bin/python" "$PREFIX/fasth3_q8.py" convert "$FASTH3_DIR" | grep -E "wrote|block [0-9]*0/" | sed 's/^/  /'
+        [ -f "$FASTH3_DIR/transformer-q8/q8.json" ] || die "the 8-bit conversion did not finish"
+      fi
+      # Q8_ONLY=1: the 65 GB of bfloat16 weights are not read again on this chip
+      [ "${Q8_ONLY:-0}" != 1 ] || [ "$MODE" = "--verify" ] || rm -f "$FASTH3_DIR"/transformer/diffusion_pytorch_model-*.safetensors
+      ok "transformer-q8 ($(du -sh "$FASTH3_DIR/transformer-q8" | cut -f1)): FastH3 runs on the MLX engine with 8-bit weights"
+      ;; esac
 
     step "Native engine for FastH3: TensorFold 1.0 Zig + Metal runtime @ ${ZIG_COMMIT:0:8} -> $PREFIX/zig-engine"
     ZIG_ENGINE="$PREFIX/zig-engine"

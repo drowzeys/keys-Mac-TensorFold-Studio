@@ -10,11 +10,19 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**2.1** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
+**2.2** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
 and TensorFold **1.0**'s native Zig runtime for FastH3:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **2.2 (2026-10-08): 8-bit FastH3 weights, so a 64 GB M1 to M4 Mac fits too.** Those chips have no tensor units, so
+> they run FastH3 on the MLX engine, which held the whole checkpoint in bfloat16: 64 GiB. The setup now writes the
+> 50 blocks' weights once in MLX's 8-bit quantized form (37 GB on disk, converted a block at a time in 9 GiB of
+> memory) and a clip peaks at **37 GiB** (40 GiB at 720p). Emulated on the M5 Ultra with its int8 kernels and native
+> engine switched off: the same scene and framing as the bfloat16 render with different fine detail, and no slower
+> (31 s a pass against 30 s). It is slow next to an M5's native engine (5.3 s a pass), and **no M1 to M4 Mac has run
+> it**: expect a 5 second 480p clip to take many minutes there.
+>
 > **2.1 (2026-10-08): the default install is FastH3 only, and a clip now peaks at 32 GiB instead of 61.** FastH3 is
 > the faster engine, so MiniMax H3's own transformer and its Turbo adapter are now an option (`--turbo`) instead of
 > part of every install: 64 GB less to download, and the memory check drops from 128 GB to **64 GB on an M5-family
@@ -59,8 +67,8 @@ few-step adapters for both · a 2x video decoder for 2K finals
 | What you want to run | Memory | Disk | Chip |
 |---|---|---|---|
 | Images only (`--image-only`) | **48 GB** | 33 GB | Any Apple silicon; M5 for the int8 kernels |
-| The default: images and FastH3 video, the web app | **64 GB** | 175 GB | M5 family (the native engine needs its tensor units) |
-| The default on an M4 or earlier | **96 GB** | 175 GB | FastH3 runs on the MLX engine there, slower |
+| The default: images and FastH3 video, the web app | **64 GB** | 175 GB | M5 family: the native engine, fastest |
+| The default on an M1 to M4 | **64 GB** | 212 GB | FastH3 on the MLX engine with 8-bit weights, much slower |
 | With `--turbo`: MiniMax H3 Turbo and its 20-step modes as well | **128 GB** | 240 GB | M5 family for the fast path |
 
 The setup enforces the memory figures. All of this was measured on one machine, a Mac Studio M5 Ultra with 256 GB:
@@ -78,22 +86,37 @@ on a smaller Mac.
 | 1280x720, 5 s, 2x decoder to 2560x1440 | 27.8 | 26.4 | 32.1 | **32 GiB** |
 
 The three stages run one after another, so a job's peak is its largest stage. An image job peaks at 28 GiB
-(1344x768). Before 2.1 the same FastH3 jobs peaked at 48 to 69 GiB. Two things are larger and are why the other rows
-of the first table exist: FastH3 on the MLX engine holds the whole checkpoint (67 GiB measured on the M5, with int8;
-an earlier chip keeps it in bfloat16), and MiniMax H3 Turbo reaches 103 GiB while its adapter is merged.
+(1344x768). Before 2.1 the same FastH3 jobs peaked at 48 to 69 GiB. MiniMax H3 Turbo reaches 103 GiB while its
+adapter is merged, which is why `--turbo` asks for 128 GB.
+
+A chip without tensor units (M1 to M4) cannot use the int8 kernels or the native engine. Emulated on the M5 Ultra by
+switching both off (MLX engine, FastVideo's SIMD-group routing, float decoder), 8 passes:
+
+| FastH3 on the MLX engine, as an M1 to M4 runs it | Peak | A pass (on the M5 Ultra) |
+|---|---|---|
+| bfloat16 weights, 864x480, 5 s (before 2.2) | 64.0 GiB | 29.6 s |
+| **8-bit weights**, 864x480, 5 s, from text | **37.1 GiB** | 31.2 s |
+| **8-bit weights**, 864x480, 5 s, from an image | 34.3 GiB | 39.6 s |
+| **8-bit weights**, 1280x720, 5 s | 39.6 GiB | 107 s |
+
+The last two rows were run with a smaller buffer cache (4 GiB instead of the 8 GiB that ships), which is slower by
+about a tenth and peaks about 3 GiB lower. Against the bfloat16 render of the same seed the 8-bit clip shows the
+same scene, person and framing with different fine detail (18 dB between the two: few-step sampling amplifies any
+small change, as it does between bfloat16 and int8 on the M5).
 
 | Machine | Status |
 |---|---|
 | Mac Studio M5 Ultra, 256 GB, macOS 27 | **Tested.** Every number in this README is from this machine. |
 | M5 Max or M5 Pro, 64 GB or more | Untested. Meets the memory check for the default install with half the memory to spare; less GPU, so expect longer times. |
 | M5 family, 48 GB | Untested. Images only (`--image-only`); the setup refuses video under 64 GB, though the measured peak is 32 GiB. |
-| M4 and earlier, 96 GB or more | Untested. No tensor units: the int8 kernels and the native engine are skipped and FastH3 runs in bfloat16 on the MLX engine, far slower. |
+| M1 to M4, 64 GB or more | Untested on real hardware; emulated on the M5 Ultra. No tensor units: FastH3 runs on the MLX engine with 8-bit weights, about six times slower a pass than the native engine even on an M5 Ultra's GPU, and slower again on an older one. |
 | macOS 26 | Untested. The kernels need Metal 4, so it is the likely minimum. |
 
 Installed size: about 175 GB, nearly all model weights (FastH3 65 GB, MiniMax H3's text encoder and decoders 72 GB,
 Qwen-Image-2.1 31 GB, the image adapter and the 2x decoder 7 GB, Python environment 1.3 GB). `--turbo` adds 64 GB
 (MiniMax H3's transformer 62 GB and the Turbo adapter 2 GB). The Studio's own code and the native engine are a few
-megabytes. If you run it on another machine, a report of the chip, memory and times is welcome as an issue.
+megabytes. On an M1 to M4 the setup also writes the 8-bit FastH3 weights (37 GB); `Q8_ONLY=1` then deletes the
+65 GB they were made from. If you run it on another machine, a report of the chip, memory and times is welcome as an issue.
 
 ```bash
 brew install python@3.11 uv ffmpeg
@@ -510,9 +533,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1
-# index digest: sha256:ef1c4d26251639ae353722fe3374e7eddf8383aa20ef03341fe64a03553c90b5 (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2
+# index digest: sha256:7bb760f0e1ef8013b41b05c701f675602e628a5ccf9e150a9880e587c98035af (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the render scripts, the prebuilt native FastH3 engine (`zig-engine/tf-h3-dit`, built for Apple Silicon at the pinned commit) and `SHA256SUMS`. **It is not a
@@ -567,7 +590,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   (video) run the base models.
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
-- **Memory.** `--image-only` asks for 48 GB; the default install 64 GB on an M5 (96 GB on earlier chips); `--turbo` 128 GB. Measured on 256 GB only; see [Minimum requirements](#minimum-requirements).
+- **Memory.** `--image-only` asks for 48 GB; the default install 64 GB; `--turbo` 128 GB. Measured on 256 GB only; see [Minimum requirements](#minimum-requirements).
 - **Not part of upstream TensorFold.** The H3 family, the Qwen-Image family and the audio step were offered to
   ashhart/TensorFold as draft pull requests (#384, #393, #405) and closed on 2026-10-07: the engine is built around
   token lanes with exact output, it does not trade precision as the int8 kernels do, its Python engine is frozen and
