@@ -30,7 +30,7 @@ TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
 # the native engine for FastH3: TensorFold 1.0.2's Zig + Metal runtime with the H3 family, from the same fork
-ZIG_COMMIT="2dc7bc1998c9be51ea74ccaef22dec7a8107b086"
+ZIG_COMMIT="4741fd0adef0b8864bfb61f12464682e645ec3b7"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
 MFLUX_COMMIT="add5164e62c07cbcc9aec7a95c2e19c75605880c"
 H3_ADAPTER_NAME="lightx2v_v1.0_768p_ourlayout.safetensors"
@@ -204,7 +204,7 @@ if [ "$VIDEO" = 1 ]; then
       fi
     fi
     if [ -x "$ZIG_ENGINE/tf-h3-dit" ]; then
-      case "$CHIP" in *M[5-9]*) ok "tf-h3-dit @ $(cut -c1-8 "$ZIG_ENGINE/COMMIT"): FastH3 text to video runs on the native engine";;
+      case "$CHIP" in *M[5-9]*) ok "tf-h3-dit @ $(cut -c1-8 "$ZIG_ENGINE/COMMIT"): FastH3 runs on the native engine";;
         *) ok "tf-h3-dit installed, but $CHIP has no tensor units: FastH3 runs on the MLX engine";; esac
     fi
   fi

@@ -69,8 +69,8 @@ any time to come back. Drag it to the Dock to keep it there.
 
 1. **The prompt goes to:** Video with sound. **The clip starts from:** Text only.
 2. **Video engine:** FastH3 for speed. **Passes:** 8 (4 is faster and a little softer; 20 is slower and is the one to
-   pick when the prompt has several distinct actions). The bar under the cards says which engine will run: text to
-   video uses the native Zig engine on an M5.
+   pick when the prompt has several distinct actions). The bar under the cards says which engine will run: FastH3
+   uses the native Zig engine on an M5, from text or from an image.
 3. **Resolution:** 480p or 720p. Turn on **2x upscale** for 1728x960 or 2560x1440.
 4. **Length** and **Seed**, then describe the picture and what happens. *Next*.
 5. Step 3: add spoken lines and the soundscape if you want them. Step 4: read the prompt. Step 5: **Queue this clip**.
@@ -133,4 +133,4 @@ FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens" out.mp4
 | The app says it did not start | read `~/Library/Logs/TensorFoldStudio.log`; often another program holds port 7870 (`PORT=7871 bash scripts/make-app.sh`) |
 | A job fails | open its **Log** in the queue; the last lines say why |
 | Very slow renders | check the chip is M5-family and nothing else is using the GPU |
-| The job says "MLX engine" for FastH3 | expected when the clip starts from an image; for text to video, run `bash oneshot-setup.sh --fasth3 --verify` and look for the `tf-h3-dit` line |
+| The job says "MLX engine" for FastH3 | the native engine is not installed or the chip is older than M5: run `bash oneshot-setup.sh --fasth3 --verify` and look for the `tf-h3-dit` line |

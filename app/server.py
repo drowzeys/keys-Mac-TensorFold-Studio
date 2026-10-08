@@ -59,7 +59,7 @@ SCOUT_SIZES = {"draft": (1344, 768), "2k": (1024, 576), "qhd": (1280, 736), "sma
                "native": (1344, 768), "p720": (1280, 736), "p960": (864, 480)}
 # measured on a Mac Studio M5 Ultra, 8 second clips, standard quality, image step included (README)
 MEASURED_8S = {"draft": 108, "2k": 299, "qhd": 635, "small": 174, "native": 709}
-# FastH3 text to video on the native engine (TensorFold 1.0's Zig + Metal runtime), 5 second clips, same machine.
+# FastH3 on the native engine (TensorFold 1.0's Zig + Metal runtime), 5 second text-to-video clips, same machine.
 ZIG_ENGINE = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio")) / "zig-engine"
 # Measured through this app: 480p at 4, 8 and 20 passes (43, 66, 129 s) and 720p at 8 passes (199 to 217 s). The
 # other cells are those plus the measured pass time (5.3 s at 480p, 20 s at 720p) and about 10 s for the 2x decoder.
@@ -67,7 +67,9 @@ ZIG_FASTH3_5S = {"fh4": {"small": 43, "p960": 53, "p720": 125, "qhd": 137},
                  "fh8": {"small": 66, "p960": 76, "p720": 205, "qhd": 217},
                  "fh20": {"small": 129, "p960": 139, "p720": 445, "qhd": 457}}
 ZIG_LENGTH_POWER = 0.95  # a 10 second 720p clip took 388 s against about 205 s for 5 seconds
-# FastH3 on the MLX engine (any clip that starts from an image, and machines without the native engine):
+# A clip that starts from an image carries the image's rows and its vision tokens through every pass.
+ZIG_FROM_IMAGE = 1.13  # measured through this app: 72 s from an image against 64 s from text, 480p, 8 passes
+# FastH3 on the MLX engine (machines without the native engine):
 # 5 second text-to-video clips, measured on the same machine: quality -> preset -> seconds
 FASTH3_5S = {"fh4": {"small": 51, "p960": 61, "p720": 112, "qhd": 123},
              "fh8": {"small": 78, "p960": 88, "p720": 192, "qhd": 203},
@@ -135,7 +137,7 @@ def plan(total: int, piece: int = LONGEST) -> list[int]:
 
 
 def zig_ready() -> bool:
-    """Whether FastH3 text to video will run on the native engine here (scripts/video.sh decides the same way)."""
+    """Whether FastH3 will run on the native engine here (scripts/video.sh decides the same way)."""
 
     if not (ZIG_ENGINE / "tf-h3-dit").is_file() or os.environ.get("FASTH3_ENGINE") == "mlx":
         return False
@@ -148,11 +150,11 @@ def zig_ready() -> bool:
 
 def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -> int | None:
     if seconds > LONGEST:
-        # every part after the first opens on a frame, so a chain is timed on the MLX engine
+        # every part after the first opens on a frame
         parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
         return None if None in parts else int(sum(parts) + 2 * len(parts))
-    if text_only and zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
-        return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER)
+    if zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
+        return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER * (1.0 if text_only else ZIG_FROM_IMAGE))
     if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
         return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
     if quality.startswith("fh"):

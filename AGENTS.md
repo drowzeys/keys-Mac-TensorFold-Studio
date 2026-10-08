@@ -38,10 +38,10 @@ Do these in order on the person's Mac, and report each result plainly.
 The app is a launcher around this clone, unsigned and built locally, so Gatekeeper does not block it. Do not move
 the clone afterwards without rebuilding the app. Do not sign, notarize or redistribute the built app.
 
-Native engine (2.0): FastH3 text to video runs its passes in `$PREFIX/zig-engine/tf-h3-dit` (TensorFold 1.0 Zig +
-Metal runtime, fork branch `h3-speed`), driven by `zig_fasth3.py`; `scripts/video.sh` chooses it on an M5 when the
-clip has no first frame and prints `[tensorfold] engine: zig|mlx (why)`. `FASTH3_ENGINE=mlx|zig` forces one. Clips
-from an image, image generation and the Turbo path are MLX. Do not apply the base-model audio step to FastH3 clips:
+Native engine (2.0): FastH3 runs its passes in `$PREFIX/zig-engine/tf-h3-dit` (TensorFold 1.0 Zig +
+Metal runtime, fork branch `h3-firstframe`), driven by `zig_fasth3.py`; `scripts/video.sh` chooses it on an M5, for text
+to video and for clips from an image alike, and prints `[tensorfold] engine: zig|mlx (why)`. `FASTH3_ENGINE=mlx|zig` forces one. Image
+generation and the Turbo path are MLX. Do not apply the base-model audio step to FastH3 clips:
 the owner compared it by ear and chose FastH3's own sound. Use 20 passes when a prompt has several actions.
 `scripts/build-zig-engine.sh` builds the payload on a Mac (zig 0.17); never commit the binary.
 

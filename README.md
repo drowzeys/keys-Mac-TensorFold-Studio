@@ -15,12 +15,12 @@ and TensorFold **1.0**'s native Zig runtime for FastH3:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
-> **2.0 (2026-10-08): FastH3 text to video runs on TensorFold 1.0's native Zig + Metal engine.** Thank you to
+> **2.0 (2026-10-08): FastH3 runs on TensorFold 1.0's native Zig + Metal engine, from text or from an image.** Thank you to
 > **Ash Hart** for the TensorFold 1.0 runtime and to **FastVideo / Hao AI Lab** for FastH3. Every transformer pass of
-> a FastH3 text-to-video clip now runs in a small native program with no MLX in the loop: **5.33 s a pass against
-> 7.12 s** on the MLX engine at 864x480, 124 frames, and a 10 second 1280x720 clip in **388 s**. Prompt encoding and
-> the video and audio decoders are still Python. Image generation, the Turbo adapter path and FastH3 clips that
-> start from an image are unchanged, on the MLX engine. `oneshot-setup.sh` installs the engine from the prebuilt
+> a FastH3 clip now runs in a small native program with no MLX in the loop: **5.33 s a pass against 7.12 s** on the
+> MLX engine at 864x480, 124 frames (6.14 s against 8.08 s from a Qwen-Image first frame), and a 10 second 1280x720
+> clip in **388 s**. Prompt encoding and the video and audio decoders are still Python. Image generation and the
+> Turbo adapter path are unchanged, on the MLX engine. `oneshot-setup.sh` installs the engine from the prebuilt
 > carrier; nothing else changes in how you use the studio. See [The native engine](#the-native-engine-new-in-20).
 >
 > **1.9 (2026-10-07): a restyled web app with every choice on one screen, a one-click Mac app, and long videos.**
@@ -215,18 +215,17 @@ runtime: FastH3's block stack, its tile-routed attention and its int8 kernels fo
 
 | What | Where it runs |
 |---|---|
-| FastH3 text to video: all transformer passes (rows in, 50 blocks, routing, attention, both output heads) | `tf-h3-dit`, the native Zig + Metal program |
-| Prompt encoding, the checkpoint's small projections and timestep tables | Python (MLX), once per clip |
+| FastH3, from text or from a first frame (a Qwen scout, your own image, every part of a long chain): all transformer passes (rows in, 50 blocks, routing, attention, both output heads) | `tf-h3-dit`, the native Zig + Metal program |
+| Prompt encoding, the first frame's encoding, the checkpoint's small projections and timestep tables | Python (MLX), once per clip |
 | Video decoder, audio decoder, MP4 | Python (MLX), as before |
-| FastH3 from a first frame (a Qwen scout or your own image), and every part of a long chain after the first | MLX engine: the native family has no first-frame rows yet |
 | Qwen-Image-2.1, the Turbo adapter path, the 20-step path, the base-model audio step | MLX engine, unchanged |
 
-`scripts/video.sh` picks the native engine for a FastH3 clip when it is installed, the chip has tensor units (M5 or
-later) and the clip is text to video; it prints `[tensorfold] engine: zig` or `engine: mlx (why)`, and the web app
+`scripts/video.sh` picks the native engine for a FastH3 clip when it is installed and the chip has tensor units (M5
+or later); it prints `[tensorfold] engine: zig` or `engine: mlx (why)`, and the web app
 shows the same on the job. `FASTH3_ENGINE=mlx` or `zig` forces one.
 
-Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), FastH3 text to video with sound, one run each, whole
-command including export and decode unless a row says per pass:
+Measured on a Mac Studio M5 Ultra (64-core GPU, 256 GB), FastH3 with sound, text to video unless a row says from
+an image, one run each, whole command including export and decode unless a row says per pass:
 
 | Clip | Native engine | MLX engine |
 |---|---:|---:|
@@ -234,6 +233,10 @@ command including export and decode unless a row says per pass:
 | 864x480, 5 s, 4 passes | 43 s | 51 s |
 | 864x480, 5 s, 8 passes | 66 s | 78 s |
 | 864x480, 5 s, 20 passes | 129 s | 174 s |
+| 864x480, 124 frames, from a Qwen-Image first frame, per pass | 6.14 s | 8.08 s |
+| 864x480, 5 s, 8 passes, from a first frame (image already made) | 72 s | 90 s |
+| 1728x960 through the 2x decoder, 5 s, 8 passes, from a first frame | 77 s | not run |
+| 18 s chain of two clips, 864x480, 4 passes | 156 s | 183 s |
 | 1280x720, 5 s, 8 passes | 199 s | 259 s |
 | 1280x720, 10 s (243 frames), 8 passes | 388 s | about 480 s (53 s a pass; not re-run) |
 | 1280x720, 10 s (243 frames), 20 passes | about 950 s (45 s a pass plus export and decode) | not run |
@@ -251,7 +254,11 @@ slower than a quiet run would be (the MLX figure was 192 s when first measured);
   is not whole tiles is padded inside the attention. Rounding the size up instead is not faster at the same length
   (896x512 took 5.75 s a pass against 5.33 s for 864x480 at 124 frames), so the studio generates the size you ask
   for. Lengths of 107, 175, 243 and 311 frames are whole tiles in time; 243 is the 10 second choice.
-- **Not in the native engine yet:** first-frame rows, the prompt encoder, the decoders, Qwen-Image. A Qwen-Image
+- **From an image.** A first frame's rows sit between the text and the audio, enter on every pass at the keyframe
+  noise level and are never stepped, as in the MLX engine. On the baker test the clip opens on the given image
+  (frame 0 against the image: 33.7 dB on both engines) and the first pass agrees with the float reference as closely
+  as the MLX engine's does (video cosine 0.995 and 0.997). One image and prompt at 864x480, plus the app tests.
+- **Not in the native engine yet:** the prompt encoder, the first-frame encoder, the decoders, Qwen-Image. A Qwen-Image
   transformer for the same runtime exists in the fork and is level with the MLX one (0.483 s against 0.477 s a pass
   at 1344x768), so the studio keeps the MLX one.
 - **Install.** `oneshot-setup.sh` copies the engine from the carrier image's payload (a 0.7 MB program, its Metal
@@ -473,7 +480,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
 | Engine | TensorFold 0.6.5 (`609ca419`) + twelve commits, `drowzeys/TensorFold` branch `studio` @ `a2068c031e08109a0ec14c26b1ca655cf50ac34c` (Apache-2.0) |
-| Native engine (FastH3 text to video) | TensorFold 1.0.2's Zig + Metal runtime + an H3 family, `drowzeys/TensorFold` branch `h3-speed` @ `2dc7bc1998c9be51ea74ccaef22dec7a8107b086`; built with Zig 0.17 |
+| Native engine (FastH3) | TensorFold 1.0.2's Zig + Metal runtime + an H3 family, `drowzeys/TensorFold` branch `h3-firstframe` @ `4741fd0adef0b8864bfb61f12464682e645ec3b7`; built with Zig 0.17 |
 | Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
 | Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |

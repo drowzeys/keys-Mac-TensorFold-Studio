@@ -2,8 +2,8 @@
 
 Three stages: the engine's h3_case.py exports the prompt's rows, tables and noise (Python: text encoder and the
 checkpoint's small projections), tf-h3-dit runs every pass on the GPU, and the rows are decoded here to an MP4 with
-sound (Python: the video and audio decoders, the same ones h3_generate.py uses). Text to video only: a clip that
-starts from an image goes through h3_generate.py.
+sound (Python: the video and audio decoders, the same ones h3_generate.py uses). --first-frame starts the clip from
+an image: the export encodes it and the native passes carry its rows, held, ahead of the audio.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ def main() -> int:
     parser.add_argument("--frames", type=int, default=124)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--steps", type=int, default=0, help="passes, when not the checkpoint's trained count")
+    parser.add_argument("--first-frame", default=None, help="image the clip starts from (image to video)")
     parser.add_argument("--align", action="store_true",
                         help="generate at the size rounded up to whole routing tiles and crop back to width x height")
     parser.add_argument("--upscale-vae", help="safetensors of a packed-head (2x) video decoder; frames come out larger")
@@ -75,6 +76,8 @@ def main() -> int:
               "--prompt-file", str(prompt), "--seed", str(args.seed), "--no-reference", *size]
     if args.steps:
         export += ["--steps", str(args.steps)]
+    if args.first_frame:
+        export += ["--first-frame", args.first_frame]
     done = subprocess.run(export, capture_output=True, text=True)
     if done.returncode:
         sys.stderr.write(done.stdout[-2000:] + done.stderr[-4000:])
