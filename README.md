@@ -46,15 +46,40 @@ few-step adapters for both · a 2x video decoder for 2K finals
 
 ## Install, and the one-click app
 
-Needs an Apple-silicon Mac with an M5-family chip for the fast path, 128 GB of memory or more for video, and about
-180 GB of disk (250 GB with FastH3). Measured on a Mac Studio M5 Ultra with 256 GB only.
+### Minimum requirements
+
+| What you want to run | Memory | Disk | Chip |
+|---|---|---|---|
+| Images only (`--image-only`) | **48 GB** | 33 GB | Any Apple silicon; M5 for the int8 kernels |
+| Everything: images, FastH3, MiniMax H3 Turbo, the web app | **128 GB** | 240 GB | M5 family for the fast path |
+
+The setup enforces both memory figures. A 64 GB Mac can run the image side; it cannot run video. All of this was
+measured on one machine, a Mac Studio M5 Ultra with 256 GB, so the figures below are what the software used there,
+not a test on a smaller Mac.
+
+| Job (M5 Ultra, 2026-10-08) | Peak memory of the job |
+|---|---|
+| Image, 1344x768 | 28 GiB |
+| FastH3, native engine, 864x480, 5 s, from text | 48 GiB |
+| FastH3, native engine, 864x480, 5 s, from an image | 50 GiB |
+| FastH3, native engine, 1280x720, 5 s | 50 GiB |
+| FastH3, native engine, 864x480, 15 s | 59 GiB |
+| FastH3, native engine, 1280x720, 10 s | 61 GiB |
+| FastH3, MLX engine (what M4 and earlier use), 864x480, 5 s | 67 GiB |
+| MiniMax H3 Turbo, during its adapter merge | 103 GiB |
+
+Peak is the largest process footprint, sampled once a second; macOS and the file cache come on top. A FastH3 job
+peaks while the prompt is encoded (48 to 50 GiB) and again at the end of decoding, where it grows with clip length;
+the native passes themselves hold 23 to 32 GiB. FastH3 alone therefore peaks between 48 and 61 GiB, which leaves no
+room on a 64 GB Mac and should fit a 96 GB one, but the setup has no FastH3-only mode yet and nobody has tried it.
 
 | Machine | Status |
 |---|---|
 | Mac Studio M5 Ultra, 256 GB, macOS 27 | **Tested.** Every number in this README is from this machine. |
-| M5 Max, 128 GB | Untested. Meets the memory check (video passes peak near 64 GB); about half the GPU, so expect roughly twice the times. |
-| M5 or M5 Pro, 48 GB or more | Untested. Image only (`--image-only`); the setup refuses video under 128 GB. |
-| M4 and earlier | Untested. No tensor units: the int8 kernels and the native engine are skipped and the engine runs bfloat16, far slower. |
+| M5 Max, 128 GB | Untested. Meets the memory check; about half the GPU, so expect roughly twice the times. |
+| M5 family, 96 GB | Untested, and the setup refuses video under 128 GB. FastH3's measured peaks (48 to 61 GiB) would fit; MiniMax H3 Turbo (103 GiB) would not. |
+| Any Apple silicon, 48 to 64 GB | Untested. Images only (`--image-only`). |
+| M4 and earlier, 128 GB or more | Untested. No tensor units: the int8 kernels and the native engine are skipped and the engine runs bfloat16, far slower. |
 | macOS 26 | Untested. The kernels need Metal 4, so it is the likely minimum. |
 
 Installed size: about 240 GB, nearly all model weights (MiniMax H3 134 GB, FastH3 65 GB, Qwen-Image-2.1 31 GB,
@@ -490,7 +515,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | 2x video decoder | `speach1sdef178/MiniMax-H3-X2-Detail-VAE`, `MiniMax-H3-X2-Detail-v1.safetensors` (decoder only; its reference-detail branch is not used) |
 | Borrowed at run time | mflux @ `add5164e`: Qwen-Image prompt encoder. minimax-h3-mlx @ `79190205`: H3 text encoder, first-frame encoder, audio decoder, MP4 writer |
 | MLX | 0.32.3 |
-| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; video 103 GiB during its adapter merge |
+| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; FastH3 48 to 61 GiB; MiniMax H3 Turbo 103 GiB during its adapter merge ([table](#minimum-requirements)) |
 
 ## Notes
 
@@ -524,7 +549,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   (video) run the base models.
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
-- **Memory.** `--image-only` asks for 48 GB; the video model needs 128 GB+. Measured on 256 GB only.
+- **Memory.** `--image-only` asks for 48 GB; video needs 128 GB+. Measured on 256 GB only; see [Minimum requirements](#minimum-requirements).
 - **Not part of upstream TensorFold.** The H3 family, the Qwen-Image family and the audio step were offered to
   ashhart/TensorFold as draft pull requests (#384, #393, #405) and closed on 2026-10-07: the engine is built around
   token lanes with exact output, it does not trade precision as the int8 kernels do, its Python engine is frozen and

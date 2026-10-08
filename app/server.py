@@ -66,7 +66,9 @@ ZIG_ENGINE = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-
 ZIG_FASTH3_5S = {"fh4": {"small": 43, "p960": 53, "p720": 125, "qhd": 137},
                  "fh8": {"small": 66, "p960": 76, "p720": 205, "qhd": 217},
                  "fh20": {"small": 129, "p960": 139, "p720": 445, "qhd": 457}}
-ZIG_LENGTH_POWER = 0.95  # a 10 second 720p clip took 388 s against about 205 s for 5 seconds
+# How the time grows with length: a 10 second 720p clip took 388 s against about 205 s for 5 seconds, a 15 second 480p
+# clip 231 s against 66 s (a pass is 22 s at 44.6K rows against 5.3 s at 15.4K).
+ZIG_LENGTH_POWER = {"small": 1.15, "p960": 1.15, "p720": 0.95, "qhd": 0.95}
 # A clip that starts from an image carries the image's rows and its vision tokens through every pass.
 ZIG_FROM_IMAGE = 1.13  # measured through this app: 72 s from an image against 64 s from text, 480p, 8 passes
 # FastH3 on the MLX engine (machines without the native engine):
@@ -154,7 +156,7 @@ def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -
         parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
         return None if None in parts else int(sum(parts) + 2 * len(parts))
     if zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
-        return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER * (1.0 if text_only else ZIG_FROM_IMAGE))
+        return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER[preset] * (1.0 if text_only else ZIG_FROM_IMAGE))
     if quality in FASTH3_5S and preset in FASTH3_5S[quality]:
         return int(FASTH3_5S[quality][preset] * (seconds / 5.0) ** 1.3)
     if quality.startswith("fh"):
