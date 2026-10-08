@@ -63,12 +63,14 @@ MEASURED_8S = {"draft": 108, "2k": 299, "qhd": 635, "small": 174, "native": 709}
 ZIG_ENGINE = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio")) / "zig-engine"
 # Measured through this app: 480p at 4, 8 and 20 passes (43, 66, 129 s) and 720p at 8 passes (199 to 217 s). The
 # other cells are those plus the measured pass time (5.3 s at 480p, 20 s at 720p) and about 10 s for the 2x decoder.
-ZIG_FASTH3_5S = {"fh4": {"small": 43, "p960": 53, "p720": 125, "qhd": 137},
-                 "fh8": {"small": 66, "p960": 76, "p720": 205, "qhd": 217},
-                 "fh20": {"small": 129, "p960": 139, "p720": 445, "qhd": 457}}
+ZIG_FASTH3_5S = {"fh4": {"small": 43, "p960": 53, "p720": 125, "qhd": 137, "draft": 31, "2k": 60, "native": 104},
+                 "fh8": {"small": 66, "p960": 76, "p720": 205, "qhd": 217, "draft": 44, "2k": 93, "native": 175},
+                 "fh20": {"small": 129, "p960": 139, "p720": 445, "qhd": 457, "draft": 83, "2k": 192, "native": 388}}
+# Draft, 2K and Native at 8 passes are measured through this app too (44, 93 and 175 s; a pass is 3.2, 8.2 and 17.8 s,
+# from which the 4 and 20 pass cells follow).
 # How the time grows with length: a 10 second 720p clip took 388 s against about 205 s for 5 seconds, a 15 second 480p
 # clip 231 s against 66 s (a pass is 22 s at 44.6K rows against 5.3 s at 15.4K).
-ZIG_LENGTH_POWER = {"small": 1.15, "p960": 1.15, "p720": 0.95, "qhd": 0.95}
+ZIG_LENGTH_POWER = {"small": 1.15, "p960": 1.15, "draft": 1.15, "2k": 1.15, "p720": 0.95, "qhd": 0.95, "native": 0.95}
 # A clip that starts from an image carries the image's rows and its vision tokens through every pass.
 ZIG_FROM_IMAGE = 1.13  # measured through this app: 72 s from an image against 64 s from text, 480p, 8 passes
 # FastH3 on the MLX engine (machines without the native engine):
