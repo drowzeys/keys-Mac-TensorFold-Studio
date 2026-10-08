@@ -466,11 +466,11 @@ aspect ratio.
 
 ```bash
 docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0
-# index digest: DIGEST_2_0 (linux/arm64 + linux/amd64)
+# index digest: sha256:f65dbc3330cf5ffc521d2e9557a52c58de1791c2fbeca56465c3a53b761fba11 (linux/arm64 + linux/amd64)
 docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0 cp -a /payload/. /out/payload/
 ```
 
-The carrier holds the TensorFold wheel, `requirements.lock`, the two render scripts and `SHA256SUMS`. **It is not a
+The carrier holds the TensorFold wheel, `requirements.lock`, the render scripts, the prebuilt native FastH3 engine (`zig-engine/tf-h3-dit`, built for Apple Silicon at the pinned commit) and `SHA256SUMS`. **It is not a
 Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs the payload natively. Rebuild it with
 `PUSH=1 bash scripts/build-carrier.sh`.
 
