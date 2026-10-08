@@ -150,6 +150,16 @@ def zig_ready() -> bool:
     return re.search(r"Apple M([5-9]|[1-9][0-9])", chip) is not None
 
 
+def turbo_ready() -> bool:
+    """Whether MiniMax H3's own transformer and its Turbo adapter are installed (oneshot-setup.sh --turbo).
+
+    The default install leaves them out: FastH3 needs the MiniMax H3 text encoder and decoders, not its transformer.
+    """
+
+    model = Path(os.environ.get("H3_MODEL_DIR", Path.home() / "h3-models/MiniMax-H3"))
+    return any((model / "FL2VA" / "transformer").glob("*.safetensors")) and any((ZIG_ENGINE.parent / "adapters").glob("lightx2v*"))
+
+
 def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -> int | None:
     if seconds > LONGEST:
         # every part after the first opens on a frame
@@ -407,7 +417,7 @@ def state() -> dict:
     return {"presets": {k: {"label": v[0], "size": v[1]} for k, v in PRESETS.items()},
             "qualities": {k: v[0] for k, v in QUALITIES.items()}, "durations": DURATIONS, "long": LONG,
             "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip(),
-            "zig": zig_ready()}
+            "zig": zig_ready(), "turbo": turbo_ready()}
 
 
 @app.post("/api/compose")
@@ -435,6 +445,8 @@ def submit(body: dict) -> dict:
         build("video", {**params, "seconds": pieces[0], "output": None}, "check")
     if kind != "export" and not (params.get("prompt") or "").strip():
         raise HTTPException(400, "a prompt is needed")
+    if kind in ("video", "studio", "long") and not str(params.get("quality", "standard")).startswith("fh") and not turbo_ready():
+        raise HTTPException(400, "MiniMax H3 Turbo is not installed here (oneshot-setup.sh --turbo adds it): use FastH3, quality fh4, fh8 or fh20")
     job_id = time.strftime("%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     if kind not in ("export", "long"):
         build(kind, params, job_id)  # reject bad settings now, not when the job's turn comes

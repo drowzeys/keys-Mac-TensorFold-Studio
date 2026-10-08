@@ -1,14 +1,14 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
 **Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
-**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
+**Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
 brew install python@3.11 uv ffmpeg
-bash oneshot-setup.sh               # both models (177 GB of weights) and a test clip; --image-only for 33 GB
+bash oneshot-setup.sh               # image model, FastH3 and its text encoder and decoders (175 GB) and a test clip; --image-only for 33 GB; --turbo adds MiniMax H3 Turbo (64 GB more, 128 GB of memory)
 bash scripts/studio.sh "the picture" "what happens in the clip" out.mp4   # text -> image -> video with sound
 bash scripts/scout.sh "the picture" 6 scouts/x      # six candidates + scouts/x/sheet.jpg, 27 s
 IMAGE_FILE=scouts/x/scout_s3.png QHD=1 FRAMES=192 bash scripts/studio.sh "" "what happens" final.mp4   # 2560x1440
@@ -21,12 +21,12 @@ FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4
 Do these in order on the person's Mac, and report each result plainly.
 
 1. Check the machine: `uname -m` is `arm64`, `sysctl -n machdep.cpu.brand_string` names an M5-family chip (others run
-   without the int8 kernels, far slower: say so and ask before continuing), memory is 128 GB or more, and
-   `df -h ~` shows 180 GB free (250 GB with FastH3). Stop and report if memory or disk falls short.
+   without the int8 kernels, far slower: say so and ask before continuing), memory is 64 GB or more on an M5-family chip (96 GB on earlier chips; 128 GB if they want `--turbo`), and
+   `df -h ~` shows 185 GB free (250 GB with `--turbo`). Stop and report if memory or disk falls short.
 2. `brew install python@3.11 uv ffmpeg` (install Homebrew first only with the person's agreement).
 3. Tell the person the download sizes and licenses before starting: Qwen-Image-2.1 33 GB (Qwen Research License,
-   non-commercial), MiniMax H3 144 GB (MiniMax H3 Community License, territory limits), FastH3 70 GB (same license).
-4. `bash oneshot-setup.sh --fasth3 --app` (drop `--fasth3` if they do not want it; `--app` does step 5 with a Desktop shortcut). It resumes if interrupted. It ends by
+   non-commercial), MiniMax H3 text encoder and decoders 72 GB (MiniMax H3 Community License, territory limits; 134 GB with `--turbo`), FastH3 65 GB (same license).
+4. `bash oneshot-setup.sh --app` (add `--turbo` only if they ask for MiniMax H3 Turbo and have 128 GB; `--app` does step 5 with a Desktop shortcut). It resumes if interrupted. It ends by
    rendering `outputs/test.mp4`; confirm that file exists and plays.
 5. `bash scripts/make-app.sh` builds `~/Applications/TensorFold Studio.app`. If the models are not in the default
    folders, export `QWEN_MODEL_DIR`, `H3_MODEL_DIR`, `FASTH3_DIR` first: the app records them. Do not set

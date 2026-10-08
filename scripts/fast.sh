@@ -11,7 +11,7 @@
 # the 2x decoder), FRAMES (17n+5; 124 is 5 s), SEED, PROMPT_FILE, FASTH3_DIR, and what scripts/video.sh takes.
 # FIRST_FRAME=image.png starts the clip from an image; for Qwen image -> FastH3 video in one go use
 #   ENGINE=fasth3 STEPS=8 WIDTH=864 HEIGHT=480 bash scripts/studio.sh "the picture" "what happens" out.mp4
-# Needs `bash oneshot-setup.sh --fasth3` once (70 GB).
+# FastH3 is part of the default install (oneshot-setup.sh).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${STEPS:=8}" in 4|8|20) ;; *) echo "STEPS is 4, 8 or 20, got $STEPS" >&2; exit 2;; esac

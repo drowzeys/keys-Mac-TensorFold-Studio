@@ -11,8 +11,8 @@ seconds to 30 minutes, at 480p up to 2K.
 | Need | Why |
 |---|---|
 | Apple silicon with an **M5-family** chip | the fast kernels use its tensor units; other chips run far slower |
-| **128 GB** memory or more | the video model alone holds about 65 GB while it runs |
-| **250 GB** free disk (180 GB without FastH3) | model weights: 33 GB image, 144 GB video, 70 GB FastH3 |
+| **64 GB** memory or more | a FastH3 clip peaks near 32 GB; 96 GB on chips older than M5; 128 GB for the optional MiniMax H3 Turbo |
+| **185 GB** free disk (250 GB with Turbo) | model weights: 31 GB image, 65 GB FastH3, 72 GB text encoder and decoders |
 | Homebrew | to install Python 3.11, uv and ffmpeg |
 
 Everything here was measured on one machine: a Mac Studio M5 Ultra with 256 GB.
@@ -23,7 +23,7 @@ Everything here was measured on one machine: a Mac Studio M5 Ultra with 256 GB.
 brew install python@3.11 uv ffmpeg
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
-bash oneshot-setup.sh --fasth3 --app
+bash oneshot-setup.sh --app
 ```
 
 That one command installs the engine into its own folder (`~/.local/opt/tensorfold-studio`), downloads the models,
@@ -32,8 +32,8 @@ run again; downloads resume. Variants:
 
 | Command | What it installs |
 |---|---|
-| `bash oneshot-setup.sh --fasth3 --app` | everything (about 250 GB) |
-| `bash oneshot-setup.sh --app` | without FastH3 (about 180 GB); the FastH3 engine card will fail until you add it |
+| `bash oneshot-setup.sh --app` | images and FastH3 video (about 175 GB); needs 64 GB of memory on an M5 |
+| `bash oneshot-setup.sh --turbo --app` | also MiniMax H3 Turbo (about 240 GB); needs 128 GB of memory, and adds a second engine card |
 | `bash oneshot-setup.sh --image-only --app` | image model only (33 GB) |
 | `bash oneshot-setup.sh --verify` | checks an existing install, downloads nothing |
 
@@ -129,8 +129,8 @@ FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens" out.mp4
 | What you see | What to do |
 |---|---|
 | "run oneshot-setup.sh first" | the install did not finish; run it again, it resumes |
-| "no FastH3 checkpoint" | `bash oneshot-setup.sh --fasth3 --no-render` |
+| "no FastH3 checkpoint" | `bash oneshot-setup.sh --no-render` |
 | The app says it did not start | read `~/Library/Logs/TensorFoldStudio.log`; often another program holds port 7870 (`PORT=7871 bash scripts/make-app.sh`) |
 | A job fails | open its **Log** in the queue; the last lines say why |
 | Very slow renders | check the chip is M5-family and nothing else is using the GPU |
-| The job says "MLX engine" for FastH3 | the native engine is not installed or the chip is older than M5: run `bash oneshot-setup.sh --fasth3 --verify` and look for the `tf-h3-dit` line |
+| The job says "MLX engine" for FastH3 | the native engine is not installed or the chip is older than M5: run `bash oneshot-setup.sh --verify` and look for the `tf-h3-dit` line |

@@ -10,11 +10,19 @@ Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo ada
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**2.0** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
+**2.1** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
 and TensorFold **1.0**'s native Zig runtime for FastH3:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+> **2.1 (2026-10-08): the default install is FastH3 only, and a clip now peaks at 32 GiB instead of 61.** FastH3 is
+> the faster engine, so MiniMax H3's own transformer and its Turbo adapter are now an option (`--turbo`) instead of
+> part of every install: 64 GB less to download, and the memory check drops from 128 GB to **64 GB on an M5-family
+> Mac** (96 GB on earlier chips). Three changes made the room, none of which changes a pixel or a sample: the text
+> encoder runs one layer at a time (47 GiB down to 2.4), the prompt export reads only the FastH3 weights it uses
+> (69 GiB down to 28), and the decoders stop hoarding freed buffers (up to 60 GiB down to 14 to 32). Measured on
+> the M5 Ultra; no 64 GB or 96 GB Mac has run it yet.
+>
 > **2.0 (2026-10-08): FastH3 runs on TensorFold 1.0's native Zig + Metal engine, from text or from an image.** Thank you to
 > **Ash Hart** for the TensorFold 1.0 runtime and to **FastVideo / Hao AI Lab** for FastH3. Every transformer pass of
 > a FastH3 clip now runs in a small native program with no MLX in the loop: **5.33 s a pass against 7.12 s** on the
@@ -51,46 +59,48 @@ few-step adapters for both · a 2x video decoder for 2K finals
 | What you want to run | Memory | Disk | Chip |
 |---|---|---|---|
 | Images only (`--image-only`) | **48 GB** | 33 GB | Any Apple silicon; M5 for the int8 kernels |
-| Everything: images, FastH3, MiniMax H3 Turbo, the web app | **128 GB** | 240 GB | M5 family for the fast path |
+| The default: images and FastH3 video, the web app | **64 GB** | 175 GB | M5 family (the native engine needs its tensor units) |
+| The default on an M4 or earlier | **96 GB** | 175 GB | FastH3 runs on the MLX engine there, slower |
+| With `--turbo`: MiniMax H3 Turbo and its 20-step modes as well | **128 GB** | 240 GB | M5 family for the fast path |
 
-The setup enforces both memory figures. A 64 GB Mac can run the image side; it cannot run video. All of this was
-measured on one machine, a Mac Studio M5 Ultra with 256 GB, so the figures below are what the software used there,
-not a test on a smaller Mac.
+The setup enforces the memory figures. All of this was measured on one machine, a Mac Studio M5 Ultra with 256 GB:
+the figures below are what each stage of a job used there (`/usr/bin/time -l`, peak memory footprint), not a run
+on a smaller Mac.
 
-| Job (M5 Ultra, 2026-10-08) | Peak memory of the job |
-|---|---|
-| Image, 1344x768 | 28 GiB |
-| FastH3, native engine, 864x480, 5 s, from text | 48 GiB |
-| FastH3, native engine, 864x480, 5 s, from an image | 50 GiB |
-| FastH3, native engine, 1280x720, 5 s | 50 GiB |
-| FastH3, native engine, 864x480, 15 s | 59 GiB |
-| FastH3, native engine, 1280x720, 10 s | 61 GiB |
-| FastH3, MLX engine (what M4 and earlier use), 864x480, 5 s | 67 GiB |
-| MiniMax H3 Turbo, during its adapter merge | 103 GiB |
+| FastH3 job, native engine (M5 Ultra, 2026-10-08) | Prompt export | Passes | Decode | **Peak** |
+|---|---|---|---|---|
+| 864x480, 5 s, from text | 27.7 | 23.0 | 14.0 | **28 GiB** |
+| 864x480, 5 s, from an image | 27.9 | 23.1 | 14.0 | **28 GiB** |
+| 864x480, 5 s, 20 passes | 28.0 | 23.2 | 13.9 | **28 GiB** |
+| 864x480, 15 s | 27.8 | 28.2 | 16.9 | **28 GiB** |
+| 1280x720, 5 s | 27.8 | 26.4 | 15.8 | **28 GiB** |
+| 1280x720, 10 s | 27.9 | 32.1 | 19.6 | **32 GiB** |
+| 1280x720, 5 s, 2x decoder to 2560x1440 | 27.8 | 26.4 | 32.1 | **32 GiB** |
 
-Peak is the largest process footprint, sampled once a second; macOS and the file cache come on top. A FastH3 job
-peaks while the prompt is encoded (48 to 50 GiB) and again at the end of decoding, where it grows with clip length;
-the native passes themselves hold 23 to 32 GiB. FastH3 alone therefore peaks between 48 and 61 GiB, which leaves no
-room on a 64 GB Mac and should fit a 96 GB one, but the setup has no FastH3-only mode yet and nobody has tried it.
+The three stages run one after another, so a job's peak is its largest stage. An image job peaks at 28 GiB
+(1344x768). Before 2.1 the same FastH3 jobs peaked at 48 to 69 GiB. Two things are larger and are why the other rows
+of the first table exist: FastH3 on the MLX engine holds the whole checkpoint (67 GiB measured on the M5, with int8;
+an earlier chip keeps it in bfloat16), and MiniMax H3 Turbo reaches 103 GiB while its adapter is merged.
 
 | Machine | Status |
 |---|---|
 | Mac Studio M5 Ultra, 256 GB, macOS 27 | **Tested.** Every number in this README is from this machine. |
-| M5 Max, 128 GB | Untested. Meets the memory check; about half the GPU, so expect roughly twice the times. |
-| M5 family, 96 GB | Untested, and the setup refuses video under 128 GB. FastH3's measured peaks (48 to 61 GiB) would fit; MiniMax H3 Turbo (103 GiB) would not. |
-| Any Apple silicon, 48 to 64 GB | Untested. Images only (`--image-only`). |
-| M4 and earlier, 128 GB or more | Untested. No tensor units: the int8 kernels and the native engine are skipped and the engine runs bfloat16, far slower. |
+| M5 Max or M5 Pro, 64 GB or more | Untested. Meets the memory check for the default install with half the memory to spare; less GPU, so expect longer times. |
+| M5 family, 48 GB | Untested. Images only (`--image-only`); the setup refuses video under 64 GB, though the measured peak is 32 GiB. |
+| M4 and earlier, 96 GB or more | Untested. No tensor units: the int8 kernels and the native engine are skipped and FastH3 runs in bfloat16 on the MLX engine, far slower. |
 | macOS 26 | Untested. The kernels need Metal 4, so it is the likely minimum. |
 
-Installed size: about 240 GB, nearly all model weights (MiniMax H3 134 GB, FastH3 65 GB, Qwen-Image-2.1 31 GB,
-adapters and the 2x decoder 8 GB, Python environment 1.3 GB). The Studio's own code and the native engine are a few
+Installed size: about 175 GB, nearly all model weights (FastH3 65 GB, MiniMax H3's text encoder and decoders 72 GB,
+Qwen-Image-2.1 31 GB, the image adapter and the 2x decoder 7 GB, Python environment 1.3 GB). `--turbo` adds 64 GB
+(MiniMax H3's transformer 62 GB and the Turbo adapter 2 GB). The Studio's own code and the native engine are a few
 megabytes. If you run it on another machine, a report of the chip, memory and times is welcome as an issue.
 
 ```bash
 brew install python@3.11 uv ffmpeg
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
 cd keys-Mac-TensorFold-Studio
-bash oneshot-setup.sh --fasth3 --app    # engine, models, adapters, 2x decoder, FastH3, the app; ends with a test clip
+bash oneshot-setup.sh --app             # engine, image model, FastH3, 2x decoder, the app; ends with a test clip
+bash oneshot-setup.sh --turbo --app     # the same plus MiniMax H3 Turbo (64 GB more on disk, 128 GB of memory)
 ```
 
 **Step-by-step tutorial with screenshots: [TUTORIAL.md](TUTORIAL.md).**
@@ -104,8 +114,8 @@ if it is not running and opens it in your browser; double-click again to come ba
 > Clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio and follow its AGENTS.md section "Install for a
 > person and build the one-click app". Tell me before any large download starts and when the app is ready.
 
-Leave out `--fasth3` to skip its 70 GB (the FastH3 engine is then unavailable); `--image-only` installs the image
-model alone (33 GB). The app keeps the clone where it is: rebuild it with `make-app.sh` if you move the folder. To
+`--turbo` adds MiniMax H3's own transformer and its Turbo adapter, and with them a second engine card in the app;
+`--image-only` installs the image model alone (33 GB). An install made before 2.1 keeps Turbo. The app keeps the clone where it is: rebuild it with `make-app.sh` if you move the folder. To
 stop the server: `"$HOME/Applications/TensorFold Studio.app/Contents/MacOS/TensorFoldStudio" stop`. There is **no
 login**, and by default it listens on this Mac only; `HOST=0.0.0.0 bash scripts/make-app.sh` opens it to your
 network, which you should do only on a network you trust.
@@ -121,9 +131,9 @@ and roughly how long it takes.
 |---|---|
 | **The prompt goes to** | *Video with sound*, or *Image only*: Qwen-Image-2.1 makes the pictures and stops there. |
 | **The clip starts from** | *Text only*; *a Qwen scout image* (step 2 makes several, you pick one); or *your own image* (step 2 uploads it). |
-| **Video engine** | *FastH3*: fastest; text to video runs on the native Zig engine, and the bar under the cards says which engine a clip will use. *MiniMax H3*: the Turbo adapter with the sound made again by the base model, or the full 20 steps. |
+| **Video engine** (shown only with `--turbo` installed) | *FastH3*: fastest; text to video runs on the native Zig engine, and the bar under the cards says which engine a clip will use. *MiniMax H3*: the Turbo adapter with the sound made again by the base model, or the full 20 steps. |
 | **Passes** (FastH3) | 4 (fastest, a little softer), 8 (what it was trained for), 20 (for prompts with several actions; slowest). |
-| **Quality** (MiniMax H3) | Turbo 5 + base sound (the standard), Turbo 3, 20 steps with the fast recipe, or plain 20 steps. |
+| **Quality** (MiniMax H3, with `--turbo`) | Turbo 5 + base sound (the standard), Turbo 3, 20 steps with the fast recipe, or plain 20 steps. |
 | **Resolution** | 480p (864x480), 720p (1280x720), or the fixed outputs Draft, 2K 2048x1152 and Native 1344x768. |
 | **2x upscale** | For 480p and 720p: the 2x decoder turns 480p into 1728x960 and 720p into 2560x1440, for about 10 s more. |
 | **Length** | 5, 8, 10 or 15 s as one clip; 30 s to 30 min as a chain of clips (below). |
@@ -190,7 +200,6 @@ on rookiestar28's ComfyUI-MiniMaxH3-Studio, which does far more; no code is shar
 were trained with), on **MiniMax's** H3. What this pack adds is the attention kernel that makes it fast on a Mac.
 
 ```bash
-bash oneshot-setup.sh --fasth3                               # once: the FastH3 8-Step V2 transformer, 70 GB more
 bash scripts/fast.sh "a prompt" out.mp4                      # 480p (864x480), 8 passes
 STEPS=4 bash scripts/fast.sh "a prompt" out.mp4              # 4, 8 or 20 passes
 RES=720p bash scripts/fast.sh "a prompt" out.mp4             # 1280x720
@@ -328,6 +337,9 @@ Prompts: [`prompts/baker-image.txt`](prompts/baker-image.txt) for the picture,
 
 ## The base-model audio step
 
+*This section and the Turbo rows in "How it works" and "Measured" describe MiniMax H3 Turbo, which since 2.1 is
+installed only with `oneshot-setup.sh --turbo`. FastH3, the default, makes its picture and sound together.*
+
 The Turbo adapter is what makes the picture fast, and it is also what spoils the sound. So the sound is made twice:
 once with the picture, by the adapter, and thrown away; then again by the base model, which is the one that sounds
 right.
@@ -448,13 +460,19 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
 3. Downloads `Qwen/Qwen-Image-2.1` (33 GB) to `~/qwen-models/Qwen-Image-2.1` and the Viggle turbo adapter (1.36 GB,
    checksum verified).
-4. Unless `--image-only`: clones minimax-h3-mlx at `79190205`, downloads the MiniMax H3 `FL2VA` partition (144 GB) to
-   `~/h3-models/MiniMax-H3`, the video Turbo adapter (1.96 GB) and the 2x video decoder (5.2 GB), both checksum verified.
+4. Unless `--image-only`: clones minimax-h3-mlx at `79190205`, downloads the FastH3 transformer (65 GB), the MiniMax
+   H3 `FL2VA` partition without its transformer (72 GB: the text encoder and the two decoders) to
+   `~/h3-models/MiniMax-H3` and the 2x video decoder (5.2 GB, checksum verified). With `--turbo`, the whole
+   partition (134 GB) and the video Turbo adapter (1.96 GB, checksum verified).
 5. Renders a test: a 5 second clip from a generated image (`outputs/test.png`, `outputs/test.mp4`), or a test image
    with `--image-only`.
 
 Override `PREFIX`, `QWEN_MODEL_DIR` or `H3_MODEL_DIR` through the environment. `--verify` checks an existing install;
 `--no-render` skips the test.
+
+`studio.sh` and `video.sh` use MiniMax H3 Turbo when it is installed (`--turbo`) and FastH3 otherwise; `ENGINE=fasth3`
+or `ENGINE=h3` picks one. `QUALITY=high` and `QUALITY=full` need `--turbo`. For FastH3, `WIDTH=864 HEIGHT=480` and
+1280x736 are the sizes measured here.
 
 ### Text to image to video
 
@@ -492,9 +510,9 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0
-# index digest: sha256:f65dbc3330cf5ffc521d2e9557a52c58de1791c2fbeca56465c3a53b761fba11 (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1
+# index digest: sha256:ef1c4d26251639ae353722fe3374e7eddf8383aa20ef03341fe64a03553c90b5 (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1 cp -a /payload/. /out/payload/
 ```
 
 The carrier holds the TensorFold wheel, `requirements.lock`, the render scripts, the prebuilt native FastH3 engine (`zig-engine/tf-h3-dit`, built for Apple Silicon at the pinned commit) and `SHA256SUMS`. **It is not a
@@ -515,7 +533,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | 2x video decoder | `speach1sdef178/MiniMax-H3-X2-Detail-VAE`, `MiniMax-H3-X2-Detail-v1.safetensors` (decoder only; its reference-detail branch is not used) |
 | Borrowed at run time | mflux @ `add5164e`: Qwen-Image prompt encoder. minimax-h3-mlx @ `79190205`: H3 text encoder, first-frame encoder, audio decoder, MP4 writer |
 | MLX | 0.32.3 |
-| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; FastH3 48 to 61 GiB; MiniMax H3 Turbo 103 GiB during its adapter merge ([table](#minimum-requirements)) |
+| Peak memory | image 28 GiB at 1344x768, 47 GiB at 2560x1472; FastH3 28 to 32 GiB; MiniMax H3 Turbo 103 GiB during its adapter merge ([table](#minimum-requirements)) |
 
 ## Notes
 
@@ -549,7 +567,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
   (video) run the base models.
 - **M5 only for these numbers.** The int8 kernels need Metal 4 tensor operations; elsewhere both families run
   bfloat16 and slower.
-- **Memory.** `--image-only` asks for 48 GB; video needs 128 GB+. Measured on 256 GB only; see [Minimum requirements](#minimum-requirements).
+- **Memory.** `--image-only` asks for 48 GB; the default install 64 GB on an M5 (96 GB on earlier chips); `--turbo` 128 GB. Measured on 256 GB only; see [Minimum requirements](#minimum-requirements).
 - **Not part of upstream TensorFold.** The H3 family, the Qwen-Image family and the audio step were offered to
   ashhart/TensorFold as draft pull requests (#384, #393, #405) and closed on 2026-10-07: the engine is built around
   token lanes with exact output, it does not trade precision as the int8 kernels do, its Python engine is frozen and

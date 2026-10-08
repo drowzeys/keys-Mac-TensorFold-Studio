@@ -15,7 +15,7 @@
 # adapter's own sound), AUDIO_EQ / AUDIO_BASS / AUDIO_BASS_TARGET (see below), AUDIO_SHIFT (experimental: the audio schedule's shift,
 # 3 in the model; lower values add bass but roughen speech), EXTRA (extra flags for h3_generate.py).
 # ENGINE=fasth3 swaps the transformer for FastVideo's distilled FastH3 ($FASTH3_DIR, fetched by
-# `oneshot-setup.sh --fasth3`) with its sparse attention on TensorFold's tile kernel. STEPS is the number of passes:
+# `oneshot-setup.sh`) with its sparse attention on TensorFold's tile kernel. STEPS is the number of passes:
 # 8 is what the checkpoint was trained for, 4 is faster and softer, 20 slower with more texture. FIRST_FRAME works
 # too, though FastVideo trained FastH3 on text to video only.
 # FastH3's passes run on TensorFold 1.0's native Zig + Metal runtime ($PREFIX/zig-engine) when it is installed and
@@ -29,11 +29,15 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 # QUALITY=high: 20 steps without the adapter, with the fast recipe (the first four and last two steps in full, a
 # velocity cache and attention reuse in between: about twice as fast as plain). QUALITY=full: plain 20 steps.
 case "${QUALITY:-standard}" in high) ADAPTER=none; RECIPE="--step-cache 0.05 --attention-every 2";; full) ADAPTER=none; RECIPE="";; *) RECIPE="";; esac
-ENGINE="${ENGINE:-h3}"; STEPS="${STEPS:-8}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
+# MiniMax H3's own transformer (the Turbo adapter and the 20-step qualities run on it) is an optional part of the
+# install: oneshot-setup.sh --turbo. Without it the engine is FastH3, which needs only H3's text encoder and decoders.
+TURBO_OK=0; ls "$H3_MODEL_DIR"/FL2VA/transformer/*.safetensors >/dev/null 2>&1 && TURBO_OK=1
+ENGINE="${ENGINE:-$([ "$TURBO_OK" = 1 ] && echo h3 || echo fasth3)}"; STEPS="${STEPS:-8}"
+[ "$ENGINE" = fasth3 ] || [ "$TURBO_OK" = 1 ] || { echo "MiniMax H3's transformer is not installed (oneshot-setup.sh --turbo adds it, 128 GB of memory): use ENGINE=fasth3" >&2; exit 2; }
 if [ "$ENGINE" = fasth3 ]; then
   ADAPTER=none; RECIPE=""
-  [ -f "$FASTH3_DIR/fastvideo_inference.json" ] || { echo "no FastH3 checkpoint at $FASTH3_DIR (run oneshot-setup.sh --fasth3, or set FASTH3_DIR)" >&2; exit 2; }
+  [ -f "$FASTH3_DIR/fastvideo_inference.json" ] || { echo "no FastH3 checkpoint at $FASTH3_DIR (run oneshot-setup.sh, or set FASTH3_DIR)" >&2; exit 2; }
   case "$STEPS" in ''|*[!0-9]*|0) echo "STEPS must be a positive number of passes, got $STEPS" >&2; exit 2;; esac
 fi
 ADAPTER="${ADAPTER:-$PREFIX/adapters/lightx2v_v1.0_768p_ourlayout.safetensors}"

@@ -107,6 +107,8 @@ def main() -> int:
     import mlx.core as mx
     import numpy as np
 
+    # MLX keeps freed buffers for reuse, by default up to tens of GiB; the decoders need 13 GiB, and are no faster for more
+    mx.set_cache_limit(6 * 2**30)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import h3_generate as tool
     from minimax_h3_mlx.media import save_mp4

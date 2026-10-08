@@ -159,7 +159,8 @@ const RES = { "480p": ["480p", "864 × 480"], "720p": ["720p", "1280 × 720"], d
 function videoControls(after) {
   const two = bind(C, "up", el("input", { type: "checkbox", disabled: !UPSCALED[C.res] }), changed);
   return el("div", { class: "group" },
-    el("label", {}, "Video engine"), choice(C, "engine", { fasth3: ["FastH3", S.zig ? "FastVideo's distilled H3 on the native Zig engine: fastest" : "FastVideo's distilled H3 on the sparse tile kernel: fastest"], h3: ["MiniMax H3", "Turbo adapter with base-model sound, or the full 20 steps"] }, changed),
+    // MiniMax H3 Turbo is an optional part of the install; without it FastH3 is the engine
+    S.turbo ? el("label", {}, "Video engine") : null, S.turbo ? choice(C, "engine", { fasth3: ["FastH3", S.zig ? "FastVideo's distilled H3 on the native Zig engine: fastest" : "FastVideo's distilled H3 on the sparse tile kernel: fastest"], h3: ["MiniMax H3", "Turbo adapter with base-model sound, or the full 20 steps"] }, changed) : null,
     el("label", {}, C.engine === "fasth3" ? "Passes" : "Quality"), C.engine === "fasth3" ? choice(C, "passes", PASSES, changed, true) : choice(C, "h3quality", H3Q, changed, true),
     el("label", {}, "Resolution"), choice(C, "res", RES, changed, true),
     el("div", { class: "row" },
@@ -193,7 +194,7 @@ function viewCreate() {
   const next = el("div", { class: "row", style: "margin-top:14px" }, el("button", { class: "fit", disabled: C.step === 0, onclick: () => { C.step--; render(); } }, "Back"),
     el("span"), C.step < 4 ? el("button", { class: "primary fit", onclick: () => { C.step++; render(); } }, "Next") : null);
   sync();
-  const goes = el("div", {}, el("label", {}, "The prompt goes to"), choice(C, "goes", { video: ["Video with sound", "FastH3 or MiniMax H3"], image: ["Image only", "Qwen-Image-2.1"] }, changed));
+  const goes = el("div", {}, el("label", {}, "The prompt goes to"), choice(C, "goes", { video: ["Video with sound", S.turbo ? "FastH3 or MiniMax H3" : "FastH3"], image: ["Image only", "Qwen-Image-2.1"] }, changed));
   const picture = field("The picture: who and what is in frame, where, the light", bind(C, "scene", el("textarea", { placeholder: "A middle-aged baker in a cream shirt and green apron behind a wooden counter in a small bakery at dawn, warm window light from the left…" })));
   if (C.mode === "image") {
     // the prompt goes to the image model and stops there
@@ -389,7 +390,7 @@ function render() { $("#tabs").replaceChildren(...["Create", "Production", "Edit
 (async () => { const want = decodeURIComponent(location.hash.slice(1)); if (["Create", "Production", "Editor", "Library"].includes(want)) tab = want;
   // links can preset the Create form: ?goes=image, ?engine=h3&res=720p&up=1&step=4 ...
   for (const [k, v] of new URLSearchParams(location.search)) if (k in C && k !== "mode") C[k] = k === "up" ? v === "1" : (k === "step" || k === "count" ? Number(v) : v);
-  S = await api("/api/state"); $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
+  S = await api("/api/state"); if (!S.turbo) C.engine = "fasth3"; $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
 </script>
 </body>
 </html>

@@ -27,10 +27,59 @@ from tensorfold.families.h3.schedule import parse_subset
 from tensorfold.families.h3.weights import int8_attention, int8_mlp, load_dit
 
 
+class _NoEval:
+    """`mlx.core` with `eval` switched off, so weights that were loaded lazily stay on disk until they are used."""
+
+    def __getattr__(self, name):
+        return getattr(mx, name)
+
+    @staticmethod
+    def eval(*_):
+        return None
+
+
+def _streamed(encoder):
+    """Make the text encoder run one layer at a time, each layer's weights read for its turn and dropped after it.
+
+    The encoder is 50 layers of a 32B model: held whole it is 48 GiB, the largest thing in a FastH3 render. Run this
+    way it needs one layer at a time (under 2 GiB) and returns the same rows, so a clip fits a 64 GB Mac.
+    """
+
+    model = encoder.language
+
+    def hidden_states(input_ids, position_ids, inputs_embeds=None, visual_pos_masks=None, deepstack_visual_embeds=None):
+        from mlx_vlm.models.base import create_attention_mask
+
+        h = model.embed_tokens(input_ids) if inputs_embeds is None else inputs_embeds
+        mask = create_attention_mask(h, None)
+        position_embeddings = None
+        if position_ids is not None and not model.layers[0].self_attn.rotary_emb.fused_apply:
+            position_embeddings = model.layers[0].self_attn.rotary_emb(h, position_ids)
+        for index in range(len(model.layers)):
+            h = model.layers[index](h, mask, None, position_ids, position_embeddings)
+            if deepstack_visual_embeds is not None and index < len(deepstack_visual_embeds):
+                h = model._deepstack_process(h, visual_pos_masks, deepstack_visual_embeds[index])
+            mx.eval(h)
+            model.layers[index] = None  # the encoder is used once
+            mx.clear_cache()
+        return h
+
+    encoder._hidden_states = hidden_states
+
+
 def encode_text(root: Path, prompt: str, image=None):
+    import minimax_h3_mlx.text_encoder as module
     from minimax_h3_mlx.text_encoder import MiniMaxH3TextEncoder
 
-    encoder = MiniMaxH3TextEncoder(root / "text_encoder", dtype=mx.bfloat16, load_vision=image is not None)
+    original = module.mx
+    module.mx = _NoEval()  # the loader ends by reading every weight into memory; leave them for _streamed
+    try:
+        encoder = MiniMaxH3TextEncoder(root / "text_encoder", dtype=mx.bfloat16, load_vision=image is not None)
+    finally:
+        module.mx = original
+    if encoder.vision is not None:
+        mx.eval(encoder.vision.parameters())
+    _streamed(encoder)
     if image is not None:
         # the checkpoint's processor folder asks for PyTorch; the image processor built from the vision config
         # needs only numpy, and the image arrives already on the render canvas
@@ -58,6 +107,38 @@ def encode_first_frame(root: Path, image, width: int, height: int, patch):
     gc.collect()
     mx.clear_cache()
     return rows
+
+
+def _lazy_fasth3():
+    """Let the native engine's export read only the FastH3 weights it uses.
+
+    The engine's h3_case.py imports this file as its tool and calls `fasth3.load_fasth3`, which ends by reading the
+    whole 65 GB checkpoint into memory (about 50 GiB at its peak). The export needs the small projections and the
+    modulation tables; the block weights are read by the native program itself. With the final `eval` skipped the
+    weights stay on disk until something uses them, and the export peaks at a few GiB with the same result.
+    """
+
+    from tensorfold.families.h3 import fasth3
+
+    load = fasth3.load_fasth3
+    if getattr(load, "lazy", False):
+        return
+
+    def load_fasth3(*args, **kwargs):
+        evaluate = mx.eval
+        mx.eval = lambda *_: None
+        try:
+            return load(*args, **kwargs)
+        finally:
+            mx.eval = evaluate
+
+    load_fasth3.lazy = True
+    fasth3.load_fasth3 = load_fasth3
+
+
+if __name__ == "h3_generate_dev":  # imported by the native engine's export, not run as the MLX renderer
+    _lazy_fasth3()
+    mx.set_cache_limit(2 * 2**30)  # freed buffers are otherwise kept for reuse, tens of GiB of them
 
 
 AUDIO_PEAK = 0.89  # -1 dBFS: where the loudest sample of a clip is brought to when the decoder overshoots

@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # =============================================================================
-# One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + MiniMax H3 (video + audio)
+# One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + FastH3 (video + audio)
 #
-#   bash oneshot-setup.sh               # install, fetch both models, both turbo adapters and the 2x video decoder, render a test clip
-#   bash oneshot-setup.sh --fasth3 --app   # everything, plus the double-clickable app: the full one-shot
-#   bash oneshot-setup.sh --fasth3      # also fetch FastH3 8-Step V2 (70 GB more) for scripts/fast.sh, text to video
-#   bash oneshot-setup.sh --app         # also build ~/Applications/TensorFold Studio.app (and a Desktop shortcut)
-#   bash oneshot-setup.sh --image-only  # the image model only (33 GB instead of 177 GB), render a test image
+#   bash oneshot-setup.sh               # install, fetch the image model, FastH3 and what it needs of MiniMax H3, render a test clip
+#   bash oneshot-setup.sh --app         # the same, plus the double-clickable app: the full one-shot
+#   bash oneshot-setup.sh --turbo       # also MiniMax H3's own transformer and its Turbo adapter (64 GB more, 128 GB of memory)
+#   bash oneshot-setup.sh --image-only  # the image model only (33 GB), render a test image
 #   bash oneshot-setup.sh --no-render   # install and fetch only
 #   bash oneshot-setup.sh --verify      # check an existing install, no downloads, no render
 #
-# Engine payload order: this clone's ./payload -> GHCR carrier image -> git at the pinned commit.
+# Memory: 48 GB for --image-only; 64 GB for the default install on an M5-family chip (96 GB on earlier chips, which
+# run FastH3 on the MLX engine); 128 GB with --turbo. Disk: 33 GB, 175 GB and 240 GB.
+# Engine payload order: this clone's ./payload -> GHCR carrier image -> release download -> git at the pinned commit.
 # Installs into its own venv ($PREFIX, default ~/.local/opt/tensorfold-studio). Touches nothing else.
-# Weights: $H3_MODEL_DIR (default ~/h3-models/MiniMax-H3, FL2VA partition, 144 GB) and
-#          $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1, 33 GB), and with --fasth3
-#          $FASTH3_DIR (default ~/h3-models/FastH3-8-Step-V2, its transformer only, 70 GB).
+# Weights: $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1, 33 GB), $FASTH3_DIR (default
+#          ~/h3-models/FastH3-8-Step-V2, its transformer, 70 GB) and $H3_MODEL_DIR (default ~/h3-models/MiniMax-H3:
+#          the text encoder and the two decoders, 72 GB; with --turbo the whole FL2VA partition, 134 GB).
 # =============================================================================
 set -euo pipefail
 
@@ -24,7 +25,7 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.0}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.1}"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
@@ -44,11 +45,12 @@ QWEN_ADAPTER_SHA256="f06c266e04438b5272bdfb99410421d52a65d7a37f6f42aabc3cb1faf01
 X2_REPO="speach1sdef178/MiniMax-H3-X2-Detail-VAE"
 X2_NAME="MiniMax-H3-X2-Detail-v1.safetensors"
 X2_SHA256="2296840f4acedcaa976688e7d7b97f7bf570b136e400385d3f46224011897aac"
-MODE=""; VIDEO=1; FASTH3=0; APP=0
+MODE=""; VIDEO=1; TURBO=0; APP=0
 for arg in "$@"; do
   case "$arg" in
     --image-only) VIDEO=0;;
-    --fasth3) FASTH3=1;;
+    --fasth3) ;;  # FastH3 is the default video engine since 2.1; the flag is kept so older commands still run
+    --turbo) TURBO=1;;
     --app) APP=1;;
     --verify|--no-render) MODE="$arg";;
     *) echo "unknown option $arg" >&2; exit 2;;
@@ -63,8 +65,13 @@ step "Preflight"
 [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ] || die "Apple silicon macOS only"
 CHIP=$(sysctl -n machdep.cpu.brand_string); RAM=$(( $(sysctl -n hw.memsize) / 1073741824 ))
 ok "$CHIP, macOS $(sw_vers -productVersion), ${RAM} GB"
-NEED=$([ "$VIDEO" = 1 ] && echo 128 || echo 48)
-[ "$RAM" -ge "$NEED" ] || die "needs ${NEED} GB+ unified memory for this install (measured on 256 GB only)"
+# an install that already holds MiniMax H3's transformer and the Turbo adapter keeps them
+[ "$VIDEO" = 0 ] || { ls "$H3_MODEL_DIR"/FL2VA/transformer/*.safetensors >/dev/null 2>&1 && [ -f "$PREFIX/adapters/$H3_ADAPTER_NAME" ] && TURBO=1; } || true
+# Peak memory measured on an M5 Ultra: image 28 GiB; FastH3 on the native engine 32 GiB (the passes; the text encoder
+# runs a layer at a time); FastH3 on the MLX engine 67 GiB; MiniMax H3 Turbo 103 GiB while its adapter is merged.
+case "$CHIP" in *M[5-9]*) FAST_NEED=64;; *) FAST_NEED=96;; esac
+if [ "$VIDEO" = 0 ]; then NEED=48; elif [ "$TURBO" = 1 ]; then NEED=128; else NEED=$FAST_NEED; fi
+[ "$RAM" -ge "$NEED" ] || die "needs ${NEED} GB+ unified memory for this install$([ "$TURBO" = 1 ] && [ "$RAM" -ge "$FAST_NEED" ] && echo " (without --turbo it needs ${FAST_NEED} GB)") (measured on 256 GB only)"
 case "$CHIP" in *M5*) ok "M5: int8 kernels on the tensor units";;
   *) echo "  ! $CHIP is not M5: the int8 kernels need Metal 4 tensor operations; without them the engine runs bfloat16 and the README numbers do not apply";; esac
 export PATH="/opt/homebrew/bin:$PATH"
@@ -142,25 +149,33 @@ if [ "$VIDEO" = 1 ]; then
     || die "minimax-h3-mlx does not import"
   ok "minimax-h3-mlx $(git -C "$PREFIX/minimax-h3-mlx" rev-parse --short HEAD)"
 
-  step "MiniMax H3 weights (FL2VA partition, 144 GB) -> $H3_MODEL_DIR"
-  if [ ! -f "$H3_MODEL_DIR/FL2VA/transformer/model.safetensors.index.json" ]; then
+  # FastH3 replaces MiniMax H3's transformer and keeps the rest of its pipeline: the text encoder and both decoders
+  if [ "$TURBO" = 1 ]; then step "MiniMax H3 weights (FL2VA partition, 134 GB) -> $H3_MODEL_DIR"; SKIP=()
+  else step "MiniMax H3 text encoder and decoders (FL2VA without its transformer, 72 GB) -> $H3_MODEL_DIR"; SKIP=(--exclude "FL2VA/transformer/*.safetensors"); fi
+  h3_ok() { ls "$H3_MODEL_DIR"/FL2VA/text_encoder/model-00014-of-00014.safetensors "$H3_MODEL_DIR"/FL2VA/audio_vae/model.safetensors \
+              "$H3_MODEL_DIR"/FL2VA/video_vae/config.json "$H3_MODEL_DIR"/FL2VA/transformer/config.json >/dev/null 2>&1 \
+            && { [ "$TURBO" = 0 ] || ls "$H3_MODEL_DIR"/FL2VA/transformer/model-00013-of-00013.safetensors >/dev/null 2>&1; }; }
+  if ! h3_ok; then
     [ "$MODE" = "--verify" ] && die "no H3 weights at $H3_MODEL_DIR"
     echo "  MiniMax H3 is under the MiniMax H3 Community License, which limits where it may be used. Read it first:"
     echo "  https://huggingface.co/MiniMaxAI/MiniMax-H3"
     "$PREFIX/venv/bin/hf" download MiniMaxAI/MiniMax-H3 --include "FL2VA/*" --include model_index.json \
-      --include LICENSE --include README.md --local-dir "$H3_MODEL_DIR"
+      --include LICENSE --include README.md ${SKIP[@]+"${SKIP[@]}"} --local-dir "$H3_MODEL_DIR"
+    h3_ok || die "the MiniMax H3 download is incomplete at $H3_MODEL_DIR"
   fi
   ok "FL2VA at $H3_MODEL_DIR ($(du -sh "$H3_MODEL_DIR/FL2VA" | cut -f1))"
 
-  step "Video Turbo adapter (lightx2v v1.0, runner layout, 1.96 GB)"
-  H3_ADAPTER="$PREFIX/adapters/$H3_ADAPTER_NAME"
-  if [ ! -f "$H3_ADAPTER" ]; then
-    [ "$MODE" = "--verify" ] && die "no video Turbo adapter at $H3_ADAPTER"
-    curl -L --fail --retry 3 -C - -o "$H3_ADAPTER.partial" "$H3_ADAPTER_URL"
-    echo "$H3_ADAPTER_SHA256  $H3_ADAPTER.partial" | shasum -a 256 -c - >/dev/null || die "video Turbo adapter checksum mismatch"
-    mv "$H3_ADAPTER.partial" "$H3_ADAPTER"
+  if [ "$TURBO" = 1 ]; then
+    step "Video Turbo adapter (lightx2v v1.0, runner layout, 1.96 GB)"
+    H3_ADAPTER="$PREFIX/adapters/$H3_ADAPTER_NAME"
+    if [ ! -f "$H3_ADAPTER" ]; then
+      [ "$MODE" = "--verify" ] && die "no video Turbo adapter at $H3_ADAPTER"
+      curl -L --fail --retry 3 -C - -o "$H3_ADAPTER.partial" "$H3_ADAPTER_URL"
+      echo "$H3_ADAPTER_SHA256  $H3_ADAPTER.partial" | shasum -a 256 -c - >/dev/null || die "video Turbo adapter checksum mismatch"
+      mv "$H3_ADAPTER.partial" "$H3_ADAPTER"
+    fi
+    ok "$H3_ADAPTER_NAME"
   fi
-  ok "$H3_ADAPTER_NAME"
 
   step "2x video decoder (MiniMax-H3-X2-Detail-VAE, 5.2 GB)"
   X2_VAE="$PREFIX/adapters/$X2_NAME"
@@ -172,7 +187,7 @@ if [ "$VIDEO" = 1 ]; then
   fi
   ok "$X2_NAME"
 
-  if [ "$FASTH3" = 1 ] || [ -f "$FASTH3_DIR/fastvideo_inference.json" ]; then
+  if true; then
     step "FastH3 8-Step V2 transformer (70 GB) -> $FASTH3_DIR"
     if ! ls "$FASTH3_DIR"/transformer/diffusion_pytorch_model-00014-of-00014.safetensors >/dev/null 2>&1; then
       [ "$MODE" = "--verify" ] && die "no FastH3 transformer at $FASTH3_DIR"
@@ -242,8 +257,8 @@ if [ "$VIDEO" = 0 ]; then
   echo; echo "DONE. $HERE/outputs/test.png"
   exit 0
 fi
-step "Test clip: text -> image -> 5 s video with sound, 864x480, standard settings"
-WIDTH=864 HEIGHT=480 FRAMES=124 SEED=42 IMAGE_PROMPT_FILE="$HERE/prompts/baker-image.txt" \
+step "Test clip: text -> image -> 5 s video with sound, 864x480, FastH3 8 passes"
+ENGINE=fasth3 WIDTH=864 HEIGHT=480 FRAMES=124 SEED=42 IMAGE_PROMPT_FILE="$HERE/prompts/baker-image.txt" \
   VIDEO_PROMPT_FILE="$HERE/prompts/baker-video.txt" bash "$HERE/scripts/studio.sh" "" "" "$HERE/outputs/test.mp4" 2>&1 \
   | grep -E "tensorfold\] \{|studio\]|rounded|rror|Trace" | sed 's/^/  /'
 [ -s "$HERE/outputs/test.mp4" ] || die "the test render wrote no file"
@@ -253,4 +268,4 @@ echo "App:    double-click TensorFold Studio in ~/Applications   (bash $HERE/scr
 echo "Studio: bash $HERE/scripts/studio.sh \"the picture\" \"what happens in the clip\" out.mp4"
 echo "Image:  bash $HERE/scripts/image.sh \"a prompt\" out.png"
 echo "Video:  bash $HERE/scripts/video.sh \"a prompt\" out.mp4      (FIRST_FRAME=photo.jpg for image to video)"
-echo "Fast:   bash $HERE/scripts/fast.sh \"a prompt\" out.mp4       (FastH3, text to video; needs oneshot-setup.sh --fasth3)"
+echo "Fast:   bash $HERE/scripts/fast.sh \"a prompt\" out.mp4       (FastH3, text to video; STEPS=4|8|20, RES=480p|720p, UPSCALE=1)"
