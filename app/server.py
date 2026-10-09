@@ -16,6 +16,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -79,6 +80,38 @@ FASTH3_5S = {"fh4": {"small": 51, "p960": 61, "p720": 112, "qhd": 123},
              "fh8": {"small": 78, "p960": 88, "p720": 192, "qhd": 203},
              "fh20": {"small": 174, "p960": 184, "p720": 434, "qhd": 445}}
 LEAD = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced."
+
+# On a DGX Spark (Linux, CUDA) the scripts hand over to spark/: FastH3 and Qwen-Image-2.1 through ComfyUI. There is no
+# 2x decoder and no MiniMax H3 Turbo there, so only the native sizes and the FastH3 qualities are offered.
+SPARK = sys.platform.startswith("linux")
+if SPARK:
+    PRESETS = {k: v for k, v in PRESETS.items() if "X2" not in v[2] and k not in ("2k", "qhd")}
+    QUALITIES = {k: v for k, v in QUALITIES.items() if k.startswith("fh")}
+# FastH3 bf16 on a DGX Spark (GB10), 5 second text-to-video clips with the models already loaded, measured through
+# the scripts at 8 passes: 864x480 in 118 s (a pass is 10.5 s, text and decoding about 34 s) and 1344x768 in 289 s
+# (a pass 29.4 s with sparse attention, the rest about 54 s). The other cells follow from the pass time; 720p is
+# not measured and is scaled from 1344x768 by its rows.
+SPARK_FASTH3_5S = {"fh4": {"small": 76, "p720": 155, "native": 172},
+                   "fh8": {"small": 118, "p720": 260, "native": 289},
+                   "fh20": {"small": 244, "p720": 575, "native": 642}}
+
+
+def machine() -> tuple[str, str]:
+    """(platform, label) for the header: which build this is and what it runs on."""
+
+    if SPARK:
+        try:
+            gpu = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True,
+                                 text=True).stdout.strip().splitlines()[0]
+        except (OSError, IndexError):
+            gpu = "CUDA"
+        return "spark", f"DGX SPARK · {gpu} · CUDA"
+    try:
+        chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        chip = ""
+    return "mac", f"MAC · {chip.replace('Apple ', '') or 'Apple Silicon'} · METAL"
+
 
 app = FastAPI(title="TensorFold Studio")
 jobs: dict[str, dict] = {}
@@ -174,6 +207,10 @@ def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -
         # every part after the first opens on a frame
         parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
         return None if None in parts else int(sum(parts) + 2 * len(parts))
+    if SPARK:
+        base = SPARK_FASTH3_5S.get(quality, {}).get(preset)
+        # the pass time grows a little faster than the length: attention over all rows is part of every pass
+        return None if base is None else int(base * (seconds / 5.0) ** 1.2 * (1.0 if text_only else 1.2))
     if zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
         return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER[preset] * (1.0 if text_only else ZIG_FROM_IMAGE))
     if quality.startswith("fh") and not M5:
@@ -217,7 +254,7 @@ def build(kind: str, params: dict, job_id: str) -> tuple[list[str], dict, list[s
         return ["bash", str(scripts / "scout.sh"), prompt, str(count), str(folder)], env, outputs
     if kind == "export":
         return ["python3", "-c", "pass"], {}, []
-    preset = params.get("preset", "draft")
+    preset = params.get("preset", "small" if SPARK else "draft")
     quality = params.get("quality", "standard")
     seconds = int(params.get("seconds", 5))
     if seconds not in DURATIONS or preset not in PRESETS or quality not in QUALITIES:
@@ -428,7 +465,9 @@ def state() -> dict:
     return {"presets": {k: {"label": v[0], "size": v[1]} for k, v in PRESETS.items()},
             "qualities": {k: v[0] for k, v in QUALITIES.items()}, "durations": DURATIONS, "long": LONG,
             "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip(),
-            "zig": zig_ready(), "turbo": turbo_ready()}
+            "zig": zig_ready(), "turbo": turbo_ready() and not SPARK, "x2": not SPARK,
+            "platform": machine()[0], "platform_label": machine()[1],
+            "engine": "CUDA · ComfyUI" if SPARK else ("native Zig engine" if zig_ready() else "MLX engine")}
 
 
 @app.post("/api/compose")
@@ -557,7 +596,7 @@ def projects() -> list[dict]:
 @app.post("/api/projects")
 def new_project(body: dict) -> dict:
     project_id = time.strftime("p%m%d-%H%M%S")
-    data = {"id": project_id, "name": body.get("name") or "Untitled", "preset": "draft", "quality": "standard",
+    data = {"id": project_id, "name": body.get("name") or "Untitled", "preset": "small" if SPARK else "draft", "quality": "fh8" if SPARK else "standard",
             "segments": [], "timeline": []}
     file = project_file(project_id)
     file.parent.mkdir(parents=True, exist_ok=True)

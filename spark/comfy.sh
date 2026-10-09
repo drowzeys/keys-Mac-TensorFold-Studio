@@ -1,0 +1,38 @@
+#!/bin/bash
+# The ComfyUI server behind TensorFold Studio on a DGX Spark.
+#   bash spark/comfy.sh start     # in the background, on 127.0.0.1:8190 (spark_generate.py does this itself)
+#   bash spark/comfy.sh stop      # frees the models' memory
+#   bash spark/comfy.sh status
+# It runs at low priority and is stopped if free memory falls under SPARK_MEMORY_FLOOR_MB (default 4000): on a Spark
+# the GPU and the system share one pool, and a machine that runs out can become unreachable.
+# Environment: PREFIX, SPARK_COMFY_PORT (8190), SPARK_MEMORY_FLOOR_MB, SPARK_COMFY_ARGS (ComfyUI flags,
+# default --use-ck-attention).
+set -euo pipefail
+PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
+PORT="${SPARK_COMFY_PORT:-8190}"
+FLOOR="${SPARK_MEMORY_FLOOR_MB:-4000}"
+MATCH="[m]ain.py --listen 127.0.0.1 --port $PORT"
+case "${1:-start}" in
+  stop) pkill -f "$MATCH" 2>/dev/null && echo "stopped" || echo "not running"; rm -f "$PREFIX/comfy.kind";;
+  status) pgrep -f "$MATCH" >/dev/null && echo "running on 127.0.0.1:$PORT" || echo "not running";;
+  run)
+    export PATH="/usr/local/cuda/bin:$PATH" CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}" MAX_JOBS="${MAX_JOBS:-2}"
+    cd "$PREFIX/ComfyUI"
+    # --use-ck-attention: ComfyUI's own flash-attention kernel, 12% faster a pass than PyTorch's on a GB10
+    # shellcheck disable=SC2086
+    nice -n 19 "$PREFIX/venv/bin/python" main.py --listen 127.0.0.1 --port "$PORT" ${SPARK_COMFY_ARGS:---use-ck-attention} &
+    pid=$!
+    trap 'kill $pid 2>/dev/null' TERM INT
+    while kill -0 $pid 2>/dev/null; do
+      free=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
+      if [ "$free" -lt "$FLOOR" ]; then echo "[tensorfold] free memory is ${free} MB, under ${FLOOR}: stopping ComfyUI"; kill -9 $pid; fi
+      sleep 1
+    done;;
+  start)
+    pgrep -f "$MATCH" >/dev/null && { echo "already running"; exit 0; }
+    [ -x "$PREFIX/venv/bin/python" ] && [ -f "$PREFIX/ComfyUI/main.py" ] || { echo "run oneshot-setup-spark.sh first: nothing at $PREFIX" >&2; exit 1; }
+    rm -f "$PREFIX/comfy.kind"
+    nohup setsid bash "$0" run > "$PREFIX/comfy.log" 2>&1 < /dev/null &
+    echo "ComfyUI starting on 127.0.0.1:$PORT (log: $PREFIX/comfy.log)";;
+  *) echo "usage: comfy.sh start|stop|status" >&2; exit 2;;
+esac

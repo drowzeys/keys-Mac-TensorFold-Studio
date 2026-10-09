@@ -22,6 +22,8 @@ header { display:flex; align-items:center; gap:16px; padding:11px 22px; border-b
 header h1 { font-size:15px; font-weight:650; letter-spacing:.01em; margin:0 10px 0 0; } header h1 b { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
 header .dot { width:22px; height:22px; border-radius:7px; background:var(--grad); box-shadow:0 0 18px rgba(103,227,255,.45); position:relative; flex:none; }
 header .dot::after { content:""; position:absolute; inset:6px; border-radius:3px; background:var(--ink); }
+.plat { font:600 11px var(--mono); letter-spacing:.04em; padding:3px 9px; border-radius:999px; border:1px solid var(--line); color:var(--dim); white-space:nowrap; }
+.plat.spark { color:#9be37a; border-color:rgba(118,185,0,.55); background:rgba(118,185,0,.10); }
 header small { color:var(--dim); margin-left:auto; font:11.5px var(--mono); letter-spacing:.02em; }
 nav { display:flex; gap:2px; padding:3px; border:1px solid var(--line); border-radius:11px; background:rgba(255,255,255,.03); }
 button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 14px; cursor:pointer; font:inherit;
@@ -97,7 +99,7 @@ a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:under
 </head>
 <body>
 <header>
-  <span class="dot"></span><h1><b>TensorFold</b> Studio</h1>
+  <span class="dot"></span><h1><b>TensorFold</b> Studio</h1><span id="plat" class="plat"></span>
   <nav id="tabs"></nav>
   <small id="ver"></small>
 </header>
@@ -162,15 +164,15 @@ function videoControls(after) {
     // MiniMax H3 Turbo is an optional part of the install; without it FastH3 is the engine
     S.turbo ? el("label", {}, "Video engine") : null, S.turbo ? choice(C, "engine", { fasth3: ["FastH3", S.zig ? "FastVideo's distilled H3 on the native Zig engine: fastest" : "FastVideo's distilled H3 on the sparse tile kernel: fastest"], h3: ["MiniMax H3", "Turbo adapter with base-model sound, or the full 20 steps"] }, changed) : null,
     el("label", {}, C.engine === "fasth3" ? "Passes" : "Quality"), C.engine === "fasth3" ? choice(C, "passes", PASSES, changed, true) : choice(C, "h3quality", H3Q, changed, true),
-    el("label", {}, "Resolution"), choice(C, "res", RES, changed, true),
+    el("label", {}, "Resolution"), choice(C, "res", Object.fromEntries(Object.entries(RES).filter(([k]) => S.x2 || !["draft", "2k"].includes(k))), changed, true),
     el("div", { class: "row" },
-      el("div", {}, el("label", {}, "Upscale"), el("label", { class: "switch" }, two, el("span", {}, "2x upscale", el("small", {}, UPSCALED[C.res] ? "2x decoder → " + UPSCALED[C.res][1] + ", about 10 s more" : "already part of this output")))),
+      !S.x2 ? null : el("div", {}, el("label", {}, "Upscale"), el("label", { class: "switch" }, two, el("span", {}, "2x upscale", el("small", {}, UPSCALED[C.res] ? "2x decoder → " + UPSCALED[C.res][1] + ", about 10 s more" : "already part of this output")))),
       el("div", { class: "fit", style: "width:250px" }, el("label", {}, "Length"), select(C, "seconds", { ...Object.fromEntries(Object.keys(S.durations).map(k => [k, k + " s · " + S.durations[k] + " frames"])),
         ...Object.fromEntries(Object.entries(S.long).map(([k, v]) => [k, v + " · " + Math.ceil(k / 15) + " clips chained"])) }, after)),
       el("div", { class: "fit", style: "width:120px" }, el("label", {}, "Seed"), bind(C, "seed", el("input", { type: "number", min: 0 })))));
 }
 function summary(est) {
-  const size = S.presets[C.preset].size, engine = C.engine === "fasth3" ? "FastH3 · " + C.passes + " passes · " + (S.zig ? "native Zig engine" : "MLX engine") : "MiniMax H3 · " + H3Q[C.h3quality][0];
+  const size = S.presets[C.preset].size, engine = C.engine === "fasth3" ? "FastH3 · " + C.passes + " passes · " + S.engine : "MiniMax H3 · " + H3Q[C.h3quality][0];
   return el("div", { class: "summary" }, el("span", { class: "chip k" }, { t2v: "TEXT → VIDEO", scout: "QWEN IMAGE → VIDEO", i2v: "IMAGE → VIDEO" }[C.mode]),
     el("span", { class: "chip" }, engine), el("span", { class: "chip" }, size[0] + " × " + size[1]), el("span", { class: "chip" }, isLong() ? S.long[C.seconds] + " · " + Math.ceil(C.seconds / 15) + " × 15 s" : C.seconds + " s · " + S.durations[C.seconds] + " f"), est);
 }
@@ -184,7 +186,7 @@ function settingsRow(obj, after, keep = {}) {
     el("div", { class: "fit", style: "width:110px" }, el("label", {}, "Seed"), bind(obj, "seed", el("input", { type: "number", min: 0 }))));
 }
 async function showEstimate(obj, node) { try { const r = await api("/api/estimate", { preset: obj.preset, quality: obj.quality, seconds: Number(obj.seconds), text_only: obj === C && noFrame() });
-  node.textContent = r.seconds ? "≈ " + mmss(r.seconds) + " on an M5 Ultra" : ""; } catch { node.textContent = ""; } }
+  node.textContent = r.seconds ? "≈ " + mmss(r.seconds) + (S.platform === "spark" ? " on a DGX Spark, models loaded" : " on an M5 Ultra") : ""; } catch { node.textContent = ""; } }
 
 /* ---------- Create ---------- */
 const STEPS = ["1. Intent / Mode", "2. First frame", "3. Words / Sound", "4. Review prompt", "5. Render"];
@@ -390,7 +392,7 @@ function render() { $("#tabs").replaceChildren(...["Create", "Production", "Edit
 (async () => { const want = decodeURIComponent(location.hash.slice(1)); if (["Create", "Production", "Editor", "Library"].includes(want)) tab = want;
   // links can preset the Create form: ?goes=image, ?engine=h3&res=720p&up=1&step=4 ...
   for (const [k, v] of new URLSearchParams(location.search)) if (k in C && k !== "mode") C[k] = k === "up" ? v === "1" : (k === "step" || k === "count" ? Number(v) : v);
-  S = await api("/api/state"); if (!S.turbo) C.engine = "fasth3"; $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
+  S = await api("/api/state"); if (!S.turbo) C.engine = "fasth3"; sync(); $("#plat").textContent = S.platform_label; $("#plat").className = "plat " + S.platform; document.title = "TensorFold Studio · " + (S.platform === "spark" ? "DGX Spark" : "Mac"); $("#ver").textContent = "pack " + S.version; $("#home").textContent = S.home; await poll(); render(); setInterval(poll, 2000); })();
 </script>
 </body>
 </html>

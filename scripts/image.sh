@@ -6,6 +6,8 @@
 # Environment: PREFIX, QWEN_MODEL_DIR, TURBO (1: Viggle turbo adapter on its six nodes; 0: base model),
 # STEPS (base model only, default 40), WIDTH, HEIGHT (multiples of 16), SEED, EXTRA (extra flags).
 set -euo pipefail
+# On a DGX Spark (Linux, CUDA) the same interface is served by spark/image.sh.
+[ "$(uname -s)" != Linux ] || exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/spark/image.sh" "$@"
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
 TURBO_ADAPTER="${TURBO_ADAPTER:-$PREFIX/adapters/Qwen-Image-2.1-viggle-turbo-v0.3-6step-lora-r256.safetensors}"

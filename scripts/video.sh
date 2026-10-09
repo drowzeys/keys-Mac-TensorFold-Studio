@@ -24,6 +24,8 @@
 # X2=1 makes WIDTH x HEIGHT the size of the finished clip: the model generates at half of each and the 2x decoder
 # ($X2_VAE) doubles it, so both must be multiples of 64 (default 1344x768). CROP=WxH centre-crops the frames before the clip is written.
 set -euo pipefail
+# On a DGX Spark (Linux, CUDA) the same interface is served by spark/video.sh.
+[ "$(uname -s)" != Linux ] || exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/spark/video.sh" "$@"
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 # QUALITY=high: 20 steps without the adapter, with the fast recipe (the first four and last two steps in full, a
