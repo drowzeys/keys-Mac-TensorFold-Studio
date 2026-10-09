@@ -15,6 +15,47 @@ and TensorFold **1.0**'s native Zig runtime for FastH3:
 **Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
 few-step adapters for both · a 2x video decoder for 2K finals
 
+## Which Mac runs what
+
+Every row is Studio **2.2**. "Default" means images (Qwen-Image-2.1) and FastH3 video with sound, the web app and
+the one-click app. Only the M5 Ultra with 256 GB has actually run it; every other row follows from memory measured
+on that machine and is marked untested.
+
+| Chip | Memory | What runs | Install command | Video engine it uses | Peak memory | Status |
+|---|---|---|---|---|---|---|
+| M5 family | 64 GB | Default | `bash oneshot-setup.sh --app` | FastH3, native Zig engine | 32 GiB | Untested |
+| M5 family | 96 GB | Default | `bash oneshot-setup.sh --app` | FastH3, native Zig engine | 32 GiB | Untested |
+| M5 family | 128 GB | Default, and MiniMax H3 Turbo if wanted | `bash oneshot-setup.sh --turbo --app` | FastH3 native; Turbo on the MLX engine with int8 kernels | 32 GiB; 103 GiB for Turbo | Untested |
+| M5 family | 256 GB or more | Everything | `bash oneshot-setup.sh --turbo --app` | The same | The same | **Tested** (M5 Ultra, 256 GB) |
+| M1 to M4 | 64 GB | Default, slowly | `bash oneshot-setup.sh --app` (add `Q8_ONLY=1` in front to save 65 GB of disk) | FastH3, MLX engine, 8-bit weights | 37 GiB at 480p, 40 GiB at 720p | Untested; emulated on the M5 |
+| M1 to M4 | 96 GB | Default, slowly | `bash oneshot-setup.sh --app` | FastH3, MLX engine, 8-bit weights | 37 to 40 GiB | Untested; emulated on the M5 |
+| M1 to M4 | 128 GB | Default, slowly. Turbo installs but is not recommended | `bash oneshot-setup.sh --app` | FastH3, MLX engine, 8-bit weights | 37 to 40 GiB | Untested; Turbo's memory without the int8 kernels is not measured |
+| M1 to M4 | 256 GB or more | Default, slowly; Turbo should fit | `bash oneshot-setup.sh --turbo --app` | FastH3 MLX 8-bit; Turbo on the MLX engine in bfloat16 | 37 to 40 GiB; Turbo not measured | Untested |
+| Any | 48 GB | Images only | `bash oneshot-setup.sh --image-only` | none | 28 GiB | Untested below 256 GB |
+
+How to configure it:
+
+- **Nothing to set on a normal install.** The setup reads the chip and the memory and picks the engine: the native
+  engine on an M5, the 8-bit weights on an M1 to M4 (it converts them once, about 37 GB). It stops with a message if
+  the Mac has too little memory for what was asked.
+- **Disk:** 175 GB for the default on an M5; 212 GB on an M1 to M4 (147 GB with `Q8_ONLY=1`); 64 GB more with
+  `--turbo`; 33 GB for `--image-only`.
+- **Speed on an M1 to M4:** the 8-bit path took 31 s a pass at 864x480 on the M5 Ultra's GPU, against 5.3 s for
+  the native engine there. An older GPU is slower again. Start with 480p, 5 seconds and 4 passes
+  (`STEPS=4 bash scripts/fast.sh "a prompt" out.mp4`, or the 4 passes card in the app).
+- **Overrides:** `FASTH3_Q8=0` runs an M1 to M4 with the uncompressed weights (64 GiB peak: a 96 GB Mac or larger;
+  no faster). `FASTH3_ENGINE=mlx` forces the MLX engine on an M5. `ENGINE=h3` asks for Turbo where it is installed.
+
+| Studio version | Smallest Mac for video |
+|---|---|
+| 2.0 and earlier | 128 GB (M5 for the fast path) |
+| 2.1 | 64 GB on an M5; 96 GB on an M1 to M4 |
+| 2.2 | 64 GB on any Apple silicon |
+
+Measured memory for each kind of job is under [Minimum requirements](#minimum-requirements).
+
+## What changed
+
 > **2.2 (2026-10-08): 8-bit FastH3 weights, so a 64 GB M1 to M4 Mac fits too.** Those chips have no tensor units, so
 > they run FastH3 on the MLX engine, which held the whole checkpoint in bfloat16: 64 GiB. The setup now writes the
 > 50 blocks' weights once in MLX's 8-bit quantized form (37 GB on disk, converted a block at a time in 9 GiB of
@@ -61,43 +102,6 @@ few-step adapters for both · a 2x video decoder for 2K finals
 > this way against 606 s for the full 20 steps, which remain one switch away: `QUALITY=high`.
 
 ## Install, and the one-click app
-
-### Which Mac runs what
-
-Every row is Studio **2.2**. "Default" means images (Qwen-Image-2.1) and FastH3 video with sound, the web app and
-the one-click app. Only the M5 Ultra with 256 GB has actually run it; every other row follows from memory measured
-on that machine and is marked untested.
-
-| Chip | Memory | What runs | Install command | Video engine it uses | Peak memory | Status |
-|---|---|---|---|---|---|---|
-| M5 family | 64 GB | Default | `bash oneshot-setup.sh --app` | FastH3, native Zig engine | 32 GiB | Untested |
-| M5 family | 96 GB | Default | `bash oneshot-setup.sh --app` | FastH3, native Zig engine | 32 GiB | Untested |
-| M5 family | 128 GB | Default, and MiniMax H3 Turbo if wanted | `bash oneshot-setup.sh --turbo --app` | FastH3 native; Turbo on the MLX engine with int8 kernels | 32 GiB; 103 GiB for Turbo | Untested |
-| M5 family | 256 GB or more | Everything | `bash oneshot-setup.sh --turbo --app` | The same | The same | **Tested** (M5 Ultra, 256 GB) |
-| M1 to M4 | 64 GB | Default, slowly | `bash oneshot-setup.sh --app` (add `Q8_ONLY=1` in front to save 65 GB of disk) | FastH3, MLX engine, 8-bit weights | 37 GiB at 480p, 40 GiB at 720p | Untested; emulated on the M5 |
-| M1 to M4 | 96 GB | Default, slowly | `bash oneshot-setup.sh --app` | FastH3, MLX engine, 8-bit weights | 37 to 40 GiB | Untested; emulated on the M5 |
-| M1 to M4 | 128 GB | Default, slowly. Turbo installs but is not recommended | `bash oneshot-setup.sh --app` | FastH3, MLX engine, 8-bit weights | 37 to 40 GiB | Untested; Turbo's memory without the int8 kernels is not measured |
-| M1 to M4 | 256 GB or more | Default, slowly; Turbo should fit | `bash oneshot-setup.sh --turbo --app` | FastH3 MLX 8-bit; Turbo on the MLX engine in bfloat16 | 37 to 40 GiB; Turbo not measured | Untested |
-| Any | 48 GB | Images only | `bash oneshot-setup.sh --image-only` | none | 28 GiB | Untested below 256 GB |
-
-How to configure it:
-
-- **Nothing to set on a normal install.** The setup reads the chip and the memory and picks the engine: the native
-  engine on an M5, the 8-bit weights on an M1 to M4 (it converts them once, about 37 GB). It stops with a message if
-  the Mac has too little memory for what was asked.
-- **Disk:** 175 GB for the default on an M5; 212 GB on an M1 to M4 (147 GB with `Q8_ONLY=1`); 64 GB more with
-  `--turbo`; 33 GB for `--image-only`.
-- **Speed on an M1 to M4:** the 8-bit path took 31 s a pass at 864x480 on the M5 Ultra's GPU, against 5.3 s for
-  the native engine there. An older GPU is slower again. Start with 480p, 5 seconds and 4 passes
-  (`STEPS=4 bash scripts/fast.sh "a prompt" out.mp4`, or the 4 passes card in the app).
-- **Overrides:** `FASTH3_Q8=0` runs an M1 to M4 with the uncompressed weights (64 GiB peak: a 96 GB Mac or larger;
-  no faster). `FASTH3_ENGINE=mlx` forces the MLX engine on an M5. `ENGINE=h3` asks for Turbo where it is installed.
-
-| Studio version | Smallest Mac for video |
-|---|---|
-| 2.0 and earlier | 128 GB (M5 for the fast path) |
-| 2.1 | 64 GB on an M5; 96 GB on an M1 to M4 |
-| 2.2 | 64 GB on any Apple silicon |
 
 ### Minimum requirements
 
