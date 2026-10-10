@@ -69,7 +69,8 @@ the Qwen team for Qwen-Image-2.1-Turbo, and the ComfyUI team for the runtime thi
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git && cd keys-Mac-TensorFold-Studio
 sudo apt install -y git ffmpeg
-bash oneshot-setup-spark.sh      # 101 GB of models, the engine build, a test image and a 5 second test clip
+bash oneshot-setup.sh            # the same command as on a Mac: on Linux it runs oneshot-setup-spark.sh
+                                 # 101 GB of models, the engine build, a test image and a 5 second test clip
 bash scripts/app.sh              # http://127.0.0.1:7870
 ```
 

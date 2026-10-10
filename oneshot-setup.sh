@@ -20,6 +20,21 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One command on either machine: on Linux with an NVIDIA GPU this hands over to the DGX Spark installer (CUDA build).
+# The options both know (--image-only, --no-render, --verify) pass through; the Mac-only ones are dropped with a note.
+if [ "$(uname -s)" = Linux ]; then
+  SPARK_ARGS=()
+  for arg in "$@"; do
+    case "$arg" in
+      --image-only|--no-render|--verify) SPARK_ARGS+=("$arg");;
+      --fasth3) ;;
+      --turbo|--app) echo "note: $arg is for the Mac build and does nothing on a DGX Spark";;
+      *) echo "unknown option $arg" >&2; exit 2;;
+    esac
+  done
+  echo "Linux detected: installing the DGX Spark (CUDA) build"
+  exec bash "$HERE/oneshot-setup-spark.sh" ${SPARK_ARGS[@]+"${SPARK_ARGS[@]}"}
+fi
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1-Turbo}"

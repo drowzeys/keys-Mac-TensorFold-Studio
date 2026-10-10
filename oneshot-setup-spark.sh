@@ -32,7 +32,8 @@ ok() { printf '  \342\234\223 %s\n' "$*"; }
 die() { printf '  \342\234\227 %s\n' "$*" >&2; exit 1; }
 
 say "Preflight"
-[ "$(uname -s)" = Linux ] || die "this is the DGX Spark installer; on a Mac run oneshot-setup.sh"
+if [ "$(uname -s)" = Darwin ]; then echo "macOS detected: installing the Mac (Metal) build"; exec bash "$HERE/oneshot-setup.sh" "$@"; fi
+[ "$(uname -s)" = Linux ] || die "this installs on a DGX Spark (Linux, CUDA) or an Apple-silicon Mac"
 command -v nvidia-smi >/dev/null || die "no nvidia-smi: this needs an NVIDIA GPU with its driver"
 GPU="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
 MEM_GB=$(awk '/MemTotal/{print int($2/1048576)}' /proc/meminfo)
