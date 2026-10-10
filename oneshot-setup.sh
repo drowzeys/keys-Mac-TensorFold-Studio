@@ -47,10 +47,10 @@ TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
 REF_COMMIT="79190205258454b43e6c9e50e577de234222419c"
-# the native engine for FastH3: TensorFold 1.0.2's Zig + Metal runtime with the H3 family, from the same fork
-ZIG_COMMIT="4741fd0adef0b8864bfb61f12464682e645ec3b7"
-ZIG_ENGINE_URL="https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min/releases/download/v2.0/zig-engine-4741fd0a-macos-arm64.tar.gz"
-ZIG_ENGINE_SHA256="416932b546674bfc51b580f7ac52b0ab341a1479fe73d7002b5623bca271179b"
+# the native engine for FastH3: TensorFold 1.0.4's Zig + Metal runtime with the H3 family, from the same fork
+ZIG_COMMIT="b7e309e042e48b72e75e9fb87342df4e9bf22f37"
+ZIG_ENGINE_URL="https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min/releases/download/v2.3/zig-engine-b7e309e0-macos-arm64.tar.gz"
+ZIG_ENGINE_SHA256="d142b1d3c57d3c5bfc4d2a0d4f83ca5bf91e8091ac6357cda52759a250fd391c"
 MFLUX_REPO="https://github.com/mflux-community/mflux.git"
 MFLUX_COMMIT="add5164e62c07cbcc9aec7a95c2e19c75605880c"
 H3_ADAPTER_NAME="lightx2v_v1.0_768p_ourlayout.safetensors"
@@ -233,7 +233,7 @@ if [ "$VIDEO" = 1 ]; then
       ok "transformer-q8 ($(du -sh "$FASTH3_DIR/transformer-q8" | cut -f1)): FastH3 runs on the MLX engine with 8-bit weights"
       ;; esac
 
-    step "Native engine for FastH3: TensorFold 1.0 Zig + Metal runtime @ ${ZIG_COMMIT:0:8} -> $PREFIX/zig-engine"
+    step "Native engine for FastH3: TensorFold 1.0.4 Zig + Metal runtime @ ${ZIG_COMMIT:0:8} -> $PREFIX/zig-engine"
     ZIG_ENGINE="$PREFIX/zig-engine"
     if [ "$(cat "$ZIG_ENGINE/COMMIT" 2>/dev/null)" != "$ZIG_COMMIT" ] || [ ! -x "$ZIG_ENGINE/tf-h3-dit" ]; then
       if [ "$MODE" = "--verify" ]; then

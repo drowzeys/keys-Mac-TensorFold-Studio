@@ -46,8 +46,9 @@ NVIDIA DGX Spark (GB10), models already loaded.
   FastH3 with its own sound. Per pass the Mac went from 9.5 s to 5.3 s.
 - On the Spark the model is the same in both columns. The gain is the engine (10.5 s a pass to 7.1 s) and the 8-bit
   video decoder (26 s to 14 s).
-- Both engines are TensorFold H3 families built on the TensorFold 1.0.2 base. 1.0.3 and 1.0.4 are language-model
-  releases; the Mac engine rebuilt on 1.0.4 measured the same 5.3 s a pass with identical output.
+- Both engines are TensorFold H3 families on the TensorFold 1.0.4 base, from one commit of one branch. 1.0.3 and 1.0.4
+  are language-model releases, so the move changed nothing here: on each machine the same seed gives a bit-identical
+  clip to the 1.0.2-based engine, at the same speed.
 
 ## Which Mac runs what
 
@@ -113,7 +114,7 @@ bash scripts/app.sh              # http://127.0.0.1:7870
 
 The installer takes the prebuilt engine from the carrier image when Docker is there, and otherwise builds it from
 source (`spark/build-engine.sh`: it fetches Zig 0.17.0 and the engine's source,
-[drowzeys/TensorFold `h3-cuda`](https://github.com/drowzeys/TensorFold/tree/h3-cuda), and needs the CUDA toolkit's
+[drowzeys/TensorFold `h3-1.0.4`](https://github.com/drowzeys/TensorFold/tree/h3-1.0.4), and needs the CUDA toolkit's
 `nvcc`, 12.9 or newer). Without it the Studio still works on ComfyUI's own blocks, slower.
 
 Measured on one DGX Spark (2026-10-09, one run each; 124 frames, text to video, models already loaded):
@@ -707,7 +708,7 @@ aspect ratio.
 
 ```bash
 docker pull ghcr.io/drowzeys/keys-tensorfold-studio:2.3
-# index digest: sha256:6275122c614eab247bd4460d8cb147c9d75d7eb5cbc88243bc67b307e43e06b0 (linux/arm64 + linux/amd64)
+# index digest: sha256:6d27fa35d57cae1f66a5ad4bb002c15086207cb1eab8ecec0544a3367b9466bc (linux/arm64 + linux/amd64)
 docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-tensorfold-studio:2.3 cp -a /payload/. /out/payload/
 ```
 
@@ -725,7 +726,7 @@ the image was `ghcr.io/drowzeys/keys-mac-tensorfold-studio`; the Mac setup still
 |---|---|
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
 | Engine | TensorFold 0.6.5 (`609ca419`) + twelve commits, `drowzeys/TensorFold` branch `studio` @ `a2068c031e08109a0ec14c26b1ca655cf50ac34c` (Apache-2.0) |
-| Native engine (FastH3) | TensorFold 1.0.2's Zig + Metal runtime + an H3 family, `drowzeys/TensorFold` branch `h3-firstframe` @ `4741fd0adef0b8864bfb61f12464682e645ec3b7`; built with Zig 0.17 |
+| Native engine (FastH3) | TensorFold 1.0.4's Zig runtime + an H3 family for Metal and one for CUDA, `drowzeys/TensorFold` branch `h3-1.0.4` @ `b7e309e042e48b72e75e9fb87342df4e9bf22f37`; built with Zig 0.17. Same output bit for bit as the 1.0.2-based engine of 2.0 to 2.2 |
 | Image model | `Qwen/Qwen-Image-2.1-Turbo`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder; 8 steps on the schedule saved with the checkpoint |
 | Image adapter (installs from before 2.3) | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes, on `Qwen/Qwen-Image-2.1` |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |
