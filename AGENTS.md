@@ -1,12 +1,12 @@
 # Agent one-shot — TensorFold Studio: Qwen-Image-2.1 + MiniMax H3 (MLX, Apple Silicon)
 
-**Repo:** https://github.com/drowzeys/keys-Mac-TensorFold-Studio  
+**Repo:** https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min  
 **Carrier image:** `ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2` (not a runtime; TensorFold wheel + lock + render scripts + the native FastH3 engine)  
 **Engine:** TensorFold 0.6.5 + H3 and Qwen-Image families @ `drowzeys/TensorFold` `a2068c03`, own venv, int8 tensor-unit kernels
 
 ```bash
-git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
-cd keys-Mac-TensorFold-Studio
+git clone https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min.git
+cd keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min
 brew install python@3.11 uv ffmpeg
 bash oneshot-setup.sh               # image model, FastH3 and its text encoder and decoders (175 GB) and a test clip; --image-only for 33 GB; --turbo adds MiniMax H3 Turbo (64 GB more, 128 GB of memory)
 bash scripts/studio.sh "the picture" "what happens in the clip" out.mp4   # text -> image -> video with sound

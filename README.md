@@ -1,6 +1,8 @@
-# keys-Mac-TensorFold-Studio (MiniMax H3 + Qwen-Image-2.1-Turbo, Mac and DGX Spark)
+# keys-TensorFold Studio (Mac+DGXSpark 64GB VRam Min)
 
-[![TensorFold Studio: Qwen-Image 2.1, MiniMax H3 and FastH3 on Apple silicon](samples/banner.jpg)](https://github.com/drowzeys/keys-Mac-TensorFold-Studio)
+**Qwen-Image-2.1-Turbo images and MiniMax H3 / FastH3 video with sound, on TensorFold: Apple-silicon Macs (Metal) and the NVIDIA DGX Spark (CUDA).**
+
+[![TensorFold Studio: Qwen-Image 2.1, MiniMax H3 and FastH3 on Apple silicon](samples/banner.jpg)](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min)
 
 *Banner art made with this studio's own Qwen-Image-2.1 step (1664x928, seed 24); the lettering was set afterwards.*
 
@@ -68,7 +70,7 @@ badge, or a purple `MAC · APPLE SILICON MX · H3-METAL`.
 the Qwen team for Qwen-Image-2.1-Turbo, and the ComfyUI team for the runtime this build stands on.
 
 ```bash
-git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git && cd keys-Mac-TensorFold-Studio
+git clone https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min.git && cd keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min
 sudo apt install -y git ffmpeg
 bash oneshot-setup.sh            # the same command as on a Mac: on Linux it runs oneshot-setup-spark.sh
                                  # 99 GB of models, the engine build, a test image and a 5 second test clip
@@ -255,8 +257,8 @@ megabytes. On an M1 to M4 the setup also writes the 8-bit FastH3 weights (37 GB)
 
 ```bash
 brew install python@3.11 uv ffmpeg
-git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
-cd keys-Mac-TensorFold-Studio
+git clone https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min.git
+cd keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min
 bash oneshot-setup.sh --app             # engine, image model, FastH3, 2x decoder, the app; ends with a test clip
 bash oneshot-setup.sh --turbo --app     # the same plus MiniMax H3 Turbo (64 GB more on disk, 128 GB of memory)
 ```
@@ -269,7 +271,7 @@ if it is not running and opens it in your browser; double-click again to come ba
 
 **Or hand it to your coding agent.** Paste this:
 
-> Clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio and follow its AGENTS.md section "Install for a
+> Clone https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min and follow its AGENTS.md section "Install for a
 > person and build the one-click app". Tell me before any large download starts and when the app is ready.
 
 `--turbo` adds MiniMax H3's own transformer and its Turbo adapter, and with them a second engine card in the app;
@@ -602,8 +604,8 @@ gives the same scene with a different rendering.
 ## One-shot
 
 ```bash
-git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git
-cd keys-Mac-TensorFold-Studio
+git clone https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min.git
+cd keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min
 brew install python@3.11 uv ffmpeg
 bash oneshot-setup.sh               # both models and the 2x decoder: 182 GB of weights
 bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
@@ -614,7 +616,7 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
 1. Gets TensorFold 0.6.5 with the H3 and Qwen-Image families (`drowzeys/TensorFold` at `a2068c03`), from the **GHCR
    prebuilt carrier** when Docker is available (checksums verified), otherwise from git at the same commit.
    The native FastH3 engine (`tf-h3-dit`) comes from the same carrier, or without Docker as a checksummed download
-   from the [v2.0 release](https://github.com/drowzeys/keys-Mac-TensorFold-Studio/releases/tag/v2.0); no Zig toolchain is needed.
+   from the [v2.0 release](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min/releases/tag/v2.0); no Zig toolchain is needed.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
 3. Downloads `Qwen/Qwen-Image-2.1-Turbo` (33 GB) to `~/qwen-models/Qwen-Image-2.1-Turbo`. Where an earlier install's
