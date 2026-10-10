@@ -103,6 +103,7 @@ async def run(workflow: dict, sampler: str) -> str:
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(URL.replace("http", "ws", 1) + f"/ws?clientId={client}", max_msg_size=0) as ws:
             prompt_id = call("/prompt", {"prompt": workflow, "client_id": client})["prompt_id"]
+            stages, running, since = [], None, time.time()
             async for message in ws:
                 if message.type != aiohttp.WSMsgType.TEXT:
                     continue
@@ -112,10 +113,17 @@ async def run(workflow: dict, sampler: str) -> str:
                     continue
                 if event["type"] == "progress" and str(data.get("node")) == sampler:
                     print(f"[tensorfold] step {data['value']}/{data['max']}", flush=True)
-                elif event["type"] == "executing" and data.get("node") is None:
-                    break
+                elif event["type"] == "executing":
+                    # SPARK_TIMING=1: how long each node of the workflow ran
+                    if running is not None:
+                        stages.append((workflow[running]["class_type"], time.time() - since))
+                    running, since = (str(data["node"]) if data.get("node") is not None else None), time.time()
+                    if running is None:
+                        break
                 elif event["type"] in ("execution_error", "execution_interrupted", "execution_success"):
                     break
+    if os.environ.get("SPARK_TIMING") == "1":
+        print("[tensorfold] stages: " + ", ".join(f"{name} {took:.1f} s" for name, took in stages if took >= 0.05), flush=True)
     return prompt_id
 
 

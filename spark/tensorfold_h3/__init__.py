@@ -182,7 +182,78 @@ class Blocks:
                              f"cosine {cosine(got, want):.5f}, relative error {error:.4f}")
             del want
 
+    def sources(self, args):
+        """TF_H3_CHECK=2: which rounding costs what. ComfyUI's own block with one of the engine's int8 roundings
+        emulated at a time, against the same block untouched; errors are relative to what the block adds."""
+        import comfy.ops
+
+        options = args["transformer_options"]
+
+        def rows(x, group=0):
+            # int8 with a scale a row (or a row and `group` columns), as the engine rounds activations
+            shape = x.shape
+            y = x.float().reshape(shape[0], -1, group) if group else x.float().reshape(shape[0], 1, -1)
+            top = y.abs().amax(dim=-1, keepdim=True).clamp_min(1e-12)
+            return ((y * (127.0 / top)).round().clamp(-127, 127) * (top / 127.0)).reshape(shape).to(x.dtype)
+
+        def split(x, count=128):
+            # the same, with the `count` channels that peak highest rounded on a scale of their own
+            y = x.float()
+            peaks = y.abs().amax(dim=0)
+            chosen = torch.zeros_like(peaks, dtype=torch.bool)
+            chosen[torch.topk(peaks, count).indices] = True
+            out = torch.empty_like(y)
+            out[:, chosen] = rows(y[:, chosen])
+            out[:, ~chosen] = rows(y[:, ~chosen])
+            crests.append(float((y.abs().amax(dim=1) / y.pow(2).mean(dim=1).sqrt()).mean()))
+            crests.append(float((y[:, ~chosen].abs().amax(dim=1) / y[:, ~chosen].pow(2).mean(dim=1).sqrt()).mean()))
+            return out.to(x.dtype)
+
+        crests = []
+
+        def wrap_input(module, quant):
+            original = module.forward
+            module.forward = lambda x, *a, **k: original(quant(x), *a, **k)
+            return lambda: setattr(module, "forward", original)
+
+        h = args["img"].clone()
+        for index in (0, 12, 25, 40, 49):
+            block = self.model.blocks[index]
+            # the stream as this block meets it
+            x = args["img"].clone()
+            for before in self.model.blocks[:index]:
+                x = before(x, args["t_emb"], args["mod_segments"], args["rope_freqs"], transformer_options=options)
+            want = block(x.clone(), args["t_emb"], args["mod_segments"], args["rope_freqs"], transformer_options=options)
+            added = float((want.float() - x.float()).norm())
+            xf = x.float()
+            crest = float((xf.abs().amax(dim=1) / xf.pow(2).mean(dim=1).sqrt()).mean())
+            peaks = xf.abs().amax(dim=0)
+            top = torch.topk(peaks, 64).values
+            report = [f"block {index}: stream crest {crest:.1f} (a row's largest over its rms), the 64 largest channels peak at "
+                      f"{float(top.min()):.1f} to {float(top.max()):.1f} against a median channel peak of {float(peaks.median()):.2f}"]
+            tests = {"q k v input rows": [(block.attn.qkv_proj, rows)], "attention out input rows": [(block.attn.out_proj, rows)],
+                     "mlp input rows": [(block.mlp.fc1, rows)], "all three": [(block.attn.qkv_proj, rows), (block.attn.out_proj, rows), (block.mlp.fc1, rows)],
+                     "all three, 128 channels apart": [(block.attn.qkv_proj, split), (block.attn.out_proj, split), (block.mlp.fc1, split)],
+                     "all three, 32 apart": [(block.attn.qkv_proj, lambda x: split(x, 32)), (block.attn.out_proj, lambda x: split(x, 32)), (block.mlp.fc1, lambda x: split(x, 32))]}
+            for label, wraps in tests.items():
+                undo = [wrap_input(module, quant) for module, quant in wraps]
+                got = block(x.clone(), args["t_emb"], args["mod_segments"], args["rope_freqs"], transformer_options=options)
+                for u in undo:
+                    u()
+                report.append(f"{label} {float((got.float() - want.float()).norm()) / added:.4f}")
+            got = x.clone()
+            self.run({**args, "img": got}, blocks=1, dense=True) if index == 0 else None
+            if index == 0:
+                report.append(f"the engine's whole block {float((got.float() - want.float()).norm()) / added:.4f}")
+            report.append("crest of q k v / attention out / mlp inputs, whole then without the 128: " + " ".join(f"{c:.1f}" for c in crests[:6]))
+            crests.clear()
+            logging.info("TensorFold H3 sources: " + "; ".join(report))
+            del want, x
+
     def first(self, args, extra):
+        if os.environ.get("TF_H3_CHECK") == "2" and not self.checked:
+            self.checked = True
+            self.sources(args)
         if os.environ.get("TF_H3_CHECK") == "1" and not self.checked:
             self.checked = True
             self.check(args)
