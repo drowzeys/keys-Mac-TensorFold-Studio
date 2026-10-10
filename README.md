@@ -64,12 +64,12 @@ Qwen-Image-2.1. The header of the web app says which build you are in: a green `
 badge, or `MAC · M5 Ultra · METAL`.
 
 **Thank you** to Ash Hart for TensorFold, FastVideo (Hao AI Lab) for FastH3 and its ComfyUI release, MiniMax for H3,
-the Qwen team, Viggle, and the ComfyUI team for the runtime this build stands on.
+the Qwen team for Qwen-Image-2.1-Turbo, and the ComfyUI team for the runtime this build stands on.
 
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git && cd keys-Mac-TensorFold-Studio
 sudo apt install -y git ffmpeg
-bash oneshot-setup-spark.sh      # 103 GB of models, the engine build, a test image and a 5 second test clip
+bash oneshot-setup-spark.sh      # 101 GB of models, the engine build, a test image and a 5 second test clip
 bash scripts/app.sh              # http://127.0.0.1:7870
 ```
 
@@ -91,7 +91,7 @@ Measured on one DGX Spark (2026-10-09, one run each; 124 frames, text to video, 
 |---|---|
 | A clip from an image, 864x480, 8 passes | 94 s |
 | First clip after a start, 864x480, 8 passes | 126 s (ComfyUI's blocks: 144 to 156 s) |
-| Qwen image (turbo adapter), 1344x768 | 18 to 21 s with the model load |
+| Qwen-Image-2.1-Turbo image, 1344x768 | 9.5 s (20 s with the model load) |
 | Three scout images, 864x480 | 23 s |
 
 Lowest free system memory seen with the engine was 49 GB of 121 (35 GB on ComfyUI's blocks): the transformer is held
@@ -119,7 +119,10 @@ What is different from the Mac build:
   at low priority and is stopped if free memory falls under 4 GB, because a Spark that runs out can become
   unreachable.
 
-Not tested: clips longer than 5 seconds and long chained videos on the engine, a download of the models from nothing
+Longer clips on the engine: 10 seconds at 1280x720 (243 frames) took 444 s, a pass 43.7 s, against 378 s on an M5 Ultra
+for the same prompt; a 30 second chained clip at 864x480 (two 15 second parts) took 611 s.
+
+Not tested: clips longer than 15 seconds in one piece, chains longer than 30 seconds, a download of the models from nothing
 (the files were already on the test machine), any GPU other than the GB10, and two Sparks working on one clip.
 
 ## What changed

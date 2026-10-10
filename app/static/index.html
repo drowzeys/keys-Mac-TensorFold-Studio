@@ -22,22 +22,21 @@ header { display:flex; align-items:center; gap:16px; padding:11px 22px; border-b
 header h1 { font-size:15px; font-weight:650; letter-spacing:.01em; margin:0 10px 0 0; } header h1 b { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
 header .dot { width:22px; height:22px; border-radius:7px; background:var(--grad); box-shadow:0 0 18px rgba(103,227,255,.45); position:relative; flex:none; }
 header .dot::after { content:""; position:absolute; inset:6px; border-radius:3px; background:var(--ink); }
-/* which build this is, hard to miss: a neon plate that beats like a heart (two quick pulses, then a rest) */
+/* which build this is, hard to miss: a neon plate whose glow swells and dims slowly while its gradient drifts */
 .plat { --neon:#67e3ff; --neon2:#8f7dff; position:relative; font:800 13.5px var(--mono); letter-spacing:.09em; padding:7px 16px 7px 30px; border-radius:999px;
-  border:1.5px solid var(--neon); color:#fff; white-space:nowrap; background:linear-gradient(135deg,color-mix(in srgb,var(--neon) 22%,transparent),color-mix(in srgb,var(--neon2) 16%,transparent));
-  text-shadow:0 0 8px var(--neon),0 0 18px var(--neon); box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 25%,transparent),0 0 14px color-mix(in srgb,var(--neon) 55%,transparent),inset 0 0 12px color-mix(in srgb,var(--neon) 22%,transparent);
-  animation:heartbeat 1.6s var(--ease) infinite; }
+  border:1.5px solid color-mix(in srgb,var(--neon) 80%,transparent); color:#fff; white-space:nowrap;
+  background:linear-gradient(110deg,color-mix(in srgb,var(--neon) 26%,transparent),color-mix(in srgb,var(--neon2) 20%,transparent),color-mix(in srgb,var(--neon) 8%,transparent),color-mix(in srgb,var(--neon2) 22%,transparent),color-mix(in srgb,var(--neon) 26%,transparent));
+  background-size:300% 100%; text-shadow:0 0 8px var(--neon),0 0 18px color-mix(in srgb,var(--neon) 70%,transparent);
+  animation:plat-glow 5.5s ease-in-out infinite alternate, plat-drift 14s linear infinite; }
 .plat:empty { display:none; }
-.plat::before { content:""; position:absolute; left:12px; top:50%; width:9px; height:9px; margin-top:-4.5px; border-radius:50%; background:var(--neon); box-shadow:0 0 10px 2px var(--neon); animation:heartdot 1.6s var(--ease) infinite; }
+.plat::before { content:""; position:absolute; left:12px; top:50%; width:9px; height:9px; margin-top:-4.5px; border-radius:50%; background:var(--neon); animation:plat-dot 5.5s ease-in-out infinite alternate; }
 .plat.spark { --neon:#76ff03; --neon2:#00e676; }
-.plat.mac { --neon:#ff4fd8; --neon2:#67e3ff; }
-@keyframes heartbeat {
-  0%,100% { transform:scale(1); box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 25%,transparent),0 0 12px color-mix(in srgb,var(--neon) 45%,transparent),inset 0 0 10px color-mix(in srgb,var(--neon) 18%,transparent); }
-  12% { transform:scale(1.07); box-shadow:0 0 0 2px var(--neon),0 0 30px 6px var(--neon),0 0 60px 10px color-mix(in srgb,var(--neon2) 55%,transparent),inset 0 0 18px color-mix(in srgb,var(--neon) 45%,transparent); }
-  24% { transform:scale(1); box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 30%,transparent),0 0 14px color-mix(in srgb,var(--neon) 50%,transparent),inset 0 0 10px color-mix(in srgb,var(--neon) 20%,transparent); }
-  36% { transform:scale(1.045); box-shadow:0 0 0 2px var(--neon),0 0 24px 4px var(--neon),0 0 46px 8px color-mix(in srgb,var(--neon2) 45%,transparent),inset 0 0 16px color-mix(in srgb,var(--neon) 38%,transparent); }
-  50% { transform:scale(1); } }
-@keyframes heartdot { 0%,24%,50%,100% { transform:scale(1); opacity:.85; } 12% { transform:scale(1.7); opacity:1; } 36% { transform:scale(1.4); opacity:1; } }
+.plat.mac { --neon:#b96bff; --neon2:#7d5cff; }
+@keyframes plat-glow {
+  from { box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 18%,transparent),0 0 8px color-mix(in srgb,var(--neon) 30%,transparent),inset 0 0 8px color-mix(in srgb,var(--neon) 12%,transparent); }
+  to { box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 55%,transparent),0 0 26px 4px color-mix(in srgb,var(--neon) 75%,transparent),0 0 54px 10px color-mix(in srgb,var(--neon2) 45%,transparent),inset 0 0 18px color-mix(in srgb,var(--neon) 38%,transparent); } }
+@keyframes plat-drift { from { background-position:0% 0; } to { background-position:300% 0; } }
+@keyframes plat-dot { from { opacity:.55; box-shadow:0 0 5px 1px color-mix(in srgb,var(--neon) 60%,transparent); } to { opacity:1; box-shadow:0 0 14px 4px var(--neon); } }
 @media (prefers-reduced-motion:reduce) { .plat, .plat::before { animation:none; } }
 header small { color:var(--dim); margin-left:auto; font:11.5px var(--mono); letter-spacing:.02em; }
 nav { display:flex; gap:2px; padding:3px; border:1px solid var(--line); border-radius:11px; background:rgba(255,255,255,.03); }

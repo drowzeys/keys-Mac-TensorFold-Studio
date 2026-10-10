@@ -1,8 +1,9 @@
 #!/bin/bash
-# One image with Qwen-Image-2.1 on a DGX Spark (CUDA). scripts/image.sh hands over to this on Linux; same interface:
+# One image with Qwen-Image-2.1-Turbo on a DGX Spark (CUDA). scripts/image.sh hands over to this on Linux; same interface:
 #   bash scripts/image.sh "a prompt" out.png
-#   TURBO=0 bash scripts/image.sh "a prompt" out.png     # base model, 40 steps
-# Environment: PREFIX, TURBO (1: Viggle turbo adapter on its six nodes; 0: base model), STEPS (base model only),
+#   TURBO=0 bash scripts/image.sh "a prompt" out.png     # the base model, 40 steps, if you have downloaded it:
+#     hf download Comfy-Org/Qwen-Image-2.1 diffusion_models/qwen_image_2.1_bf16.safetensors --local-dir "$SPARK_MODELS/Qwen-Image-2.1-Comfy"
+# Environment: PREFIX, TURBO (1: Qwen-Image-2.1-Turbo on its own 8 steps; 0: base model), STEPS (base model only),
 # WIDTH, HEIGHT (multiples of 16), SEED, PROMPT_FILE, EXTRA (--seeds 1,2,3 writes out_s1.png ...).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1 (text to image) + FastH3 (video + audio)
+# One-shot: TensorFold Studio on Apple Silicon: Qwen-Image-2.1-Turbo (text to image) + FastH3 (video + audio)
 #
 #   bash oneshot-setup.sh               # install, fetch the image model, FastH3 and what it needs of MiniMax H3, render a test clip
 #   bash oneshot-setup.sh --app         # the same, plus the double-clickable app: the full one-shot
@@ -13,7 +13,7 @@
 # weights, 37 GB more on disk, much slower than an M5); 128 GB with --turbo. Disk: 33 GB, 175 GB and 240 GB.
 # Engine payload order: this clone's ./payload -> GHCR carrier image -> release download -> git at the pinned commit.
 # Installs into its own venv ($PREFIX, default ~/.local/opt/tensorfold-studio). Touches nothing else.
-# Weights: $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1, 33 GB), $FASTH3_DIR (default
+# Weights: $QWEN_MODEL_DIR (default ~/qwen-models/Qwen-Image-2.1-Turbo, 33 GB), $FASTH3_DIR (default
 #          ~/h3-models/FastH3-8-Step-V2, its transformer, 70 GB) and $H3_MODEL_DIR (default ~/h3-models/MiniMax-H3:
 #          the text encoder and the two decoders, 72 GB; with --turbo the whole FL2VA partition, 134 GB).
 # =============================================================================
@@ -22,7 +22,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
-QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1}"
+QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1-Turbo}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
 IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2}"
@@ -39,9 +39,6 @@ MFLUX_COMMIT="add5164e62c07cbcc9aec7a95c2e19c75605880c"
 H3_ADAPTER_NAME="lightx2v_v1.0_768p_ourlayout.safetensors"
 H3_ADAPTER_URL="https://github.com/mrbizarro/Phosphene/releases/download/weights-ltx25-v1/$H3_ADAPTER_NAME"
 H3_ADAPTER_SHA256="d51d626fe0845da7e5845a47c323cf3f29086d44d24cb1a4b980882488746197"
-QWEN_ADAPTER_REPO="Viggle/Qwen-Image-2.1-viggle-turbo"
-QWEN_ADAPTER_NAME="Qwen-Image-2.1-viggle-turbo-v0.3-6step-lora-r256.safetensors"
-QWEN_ADAPTER_SHA256="f06c266e04438b5272bdfb99410421d52a65d7a37f6f42aabc3cb1faf0142644"
 X2_REPO="speach1sdef178/MiniMax-H3-X2-Detail-VAE"
 X2_NAME="MiniMax-H3-X2-Detail-v1.safetensors"
 X2_SHA256="2296840f4acedcaa976688e7d7b97f7bf570b136e400385d3f46224011897aac"
@@ -118,26 +115,26 @@ print(f"  ✓ tensorfold {m.version('tensorfold')} with the H3 and Qwen-Image fa
 print("  ✓ int8 tensor-unit kernels available" if mlp_int8.available() else "  ! int8 kernels unavailable on this GPU: bfloat16 only")
 EOF
 
-step "Qwen-Image-2.1 weights (33 GB) -> $QWEN_MODEL_DIR"
+step "Qwen-Image-2.1-Turbo weights (33 GB) -> $QWEN_MODEL_DIR"
 if [ ! -f "$QWEN_MODEL_DIR/transformer/diffusion_pytorch_model-00002-of-00002.safetensors" ]; then
-  [ "$MODE" = "--verify" ] && die "no Qwen-Image-2.1 weights at $QWEN_MODEL_DIR"
-  echo "  Qwen-Image-2.1 is under the Qwen Research License Agreement: NON-COMMERCIAL use only. Read it first:"
-  echo "  https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE"
-  "$PREFIX/venv/bin/hf" download Qwen/Qwen-Image-2.1 --local-dir "$QWEN_MODEL_DIR"
+  [ "$MODE" = "--verify" ] && die "no Qwen-Image-2.1-Turbo weights at $QWEN_MODEL_DIR"
+  echo "  Qwen-Image-2.1-Turbo is under the Qwen Research License Agreement: NON-COMMERCIAL use only. Read it first:"
+  echo "  https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo/blob/main/LICENSE"
+  BASE="$(dirname "$QWEN_MODEL_DIR")/Qwen-Image-2.1"
+  if [ -f "$BASE/text_encoder/model.safetensors" ] && [ -d "$BASE/vae" ]; then
+    # an install from before 2.3 has the base model: Turbo shares its text encoder and decoder, so only the
+    # transformer (14 GB) is fetched and the rest is linked
+    mkdir -p "$QWEN_MODEL_DIR"
+    for part in text_encoder vae processor scheduler; do [ -e "$QWEN_MODEL_DIR/$part" ] || ln -s "../$(basename "$BASE")/$part" "$QWEN_MODEL_DIR/$part"; done
+    "$PREFIX/venv/bin/hf" download Qwen/Qwen-Image-2.1-Turbo model_index.json LICENSE README.md transformer/config.json \
+      transformer/diffusion_pytorch_model-00001-of-00002.safetensors transformer/diffusion_pytorch_model-00002-of-00002.safetensors \
+      transformer/diffusion_pytorch_model.safetensors.index.json --local-dir "$QWEN_MODEL_DIR"
+  else
+    "$PREFIX/venv/bin/hf" download Qwen/Qwen-Image-2.1-Turbo --local-dir "$QWEN_MODEL_DIR"
+  fi
 fi
-ok "Qwen-Image-2.1 at $QWEN_MODEL_DIR ($(du -sh "$QWEN_MODEL_DIR" | cut -f1))"
-
-step "Image turbo adapter (Viggle turbo v0.3, rank 256, 1.36 GB)"
-mkdir -p "$PREFIX/adapters"
-QWEN_ADAPTER="$PREFIX/adapters/$QWEN_ADAPTER_NAME"
-if [ ! -f "$QWEN_ADAPTER" ]; then
-  [ "$MODE" = "--verify" ] && die "no image turbo adapter at $QWEN_ADAPTER"
-  "$PREFIX/venv/bin/hf" download "$QWEN_ADAPTER_REPO" "$QWEN_ADAPTER_NAME" LICENSE NOTICE --local-dir "$PREFIX/adapters/viggle-turbo" >/dev/null
-  echo "$QWEN_ADAPTER_SHA256  $PREFIX/adapters/viggle-turbo/$QWEN_ADAPTER_NAME" | shasum -a 256 -c - >/dev/null \
-    || die "image turbo adapter checksum mismatch"
-  ln -sf "viggle-turbo/$QWEN_ADAPTER_NAME" "$QWEN_ADAPTER"
-fi
-ok "$QWEN_ADAPTER_NAME"
+grep -q sample_sigmas "$QWEN_MODEL_DIR/model_index.json" || die "$QWEN_MODEL_DIR is not Qwen-Image-2.1-Turbo (its model_index.json has no saved schedule)"
+ok "Qwen-Image-2.1-Turbo at $QWEN_MODEL_DIR ($(du -shL "$QWEN_MODEL_DIR" | cut -f1))"
 
 if [ "$VIDEO" = 1 ]; then
   step "Text encoder, audio decoder and MP4 writer for H3: minimax-h3-mlx @ ${REF_COMMIT:0:8}"

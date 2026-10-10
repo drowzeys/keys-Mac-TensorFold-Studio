@@ -7,7 +7,7 @@ It talks to a ComfyUI server that it starts on first use (spark/comfy.sh) and le
 loaded, so the next render skips the load. `bash spark/comfy.sh stop` frees the memory.
 
 Credit: FastVideo (Hao AI Lab) for FastH3 and its sparse attention, MiniMax for H3, the Qwen team for
-Qwen-Image-2.1, Viggle for the turbo adapter, ComfyUI for the runtime.
+Qwen-Image-2.1-Turbo, ComfyUI for the runtime.
 """
 import argparse
 import asyncio
@@ -32,11 +32,12 @@ FASTH3 = {"bf16": "fastvideo_fasth3_8step_v2_pruned_bf16.safetensors",
 H3_TEXT = "qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
 H3_VAE = "minimax_h3_video_vae_fp16.safetensors"
 H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
-QWEN = "qwen_image_2.1_bf16.safetensors"
+QWEN = "qwen_image_2.1_turbo_bf16.safetensors"   # Qwen-Image-2.1-Turbo, the 8-step checkpoint
+QWEN_BASE = "qwen_image_2.1_bf16.safetensors"    # the 40-step base model, only when it has been downloaded
 QWEN_TEXT = "qwen3vl_8b_int8_convrot.safetensors"
 QWEN_VAE = "qwen_image_2.1_vae_bf16.safetensors"
-QWEN_TURBO = "Qwen-Image-2.1-viggle-turbo-v0.3-6step-lora-r256.safetensors"
-TURBO_SIGMAS = "1.0, 0.9375, 0.875, 0.75, 0.5, 0.25, 0.0"  # Viggle's six fixed nodes
+# the schedule saved with the Turbo checkpoint (model_index.json, sample_sigmas), then zero
+TURBO_SIGMAS = "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0.0"
 
 
 def call(path, data=None):
@@ -249,7 +250,8 @@ def image(args) -> None:
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else [args.seed]
     for seed in seeds:
         w = {
-            "1": {"class_type": "UNETLoader", "inputs": {"unet_name": QWEN, "weight_dtype": "default"}},
+            "1": {"class_type": "UNETLoader", "inputs": {"unet_name": QWEN_BASE if args.base else QWEN,
+                                                         "weight_dtype": "default"}},
             "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": QWEN_TEXT, "type": "qwen_image", "device": "default"}},
             "4": {"class_type": "VAELoader", "inputs": {"vae_name": QWEN_VAE}},
             "5": {"class_type": "TextEncodeQwenImage21", "inputs": {"clip": ["3", 0], "prompt": text,
@@ -264,12 +266,10 @@ def image(args) -> None:
                                   "sampler_name": "euler", "scheduler": "simple", "positive": ["5", 0],
                                   "negative": ["5", 1], "latent_image": ["6", 0], "denoise": 1.0}}
         else:
-            w["2"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["1", 0], "lora_name": QWEN_TURBO,
-                                                                      "strength_model": 1.0}}
             w["8"] = {"class_type": "RandomNoise", "inputs": {"noise_seed": seed}}
             w["9"] = {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}}
             w["10"] = {"class_type": "ManualSigmas", "inputs": {"sigmas": TURBO_SIGMAS}}
-            w["11"] = {"class_type": "CFGGuider", "inputs": {"model": ["2", 0], "positive": ["5", 0],
+            w["11"] = {"class_type": "CFGGuider", "inputs": {"model": ["1", 0], "positive": ["5", 0],
                                                              "negative": ["5", 1], "cfg": 1.0}}
             w["12"] = {"class_type": "SamplerCustomAdvanced",
                        "inputs": {"noise": ["8", 0], "guider": ["11", 0], "sampler": ["9", 0], "sigmas": ["10", 0],

@@ -7,12 +7,12 @@
 # What it installs under $PREFIX (default ~/.local/opt/tensorfold-studio):
 #   venv/       Python 3.12, PyTorch for CUDA 13, ComfyUI's requirements, the web app's
 #   ComfyUI/    pinned; its own flash and block-sparse attention kernels are what the renders use
-# and under $SPARK_MODELS (default ~/spark-studio-models), 103 GB:
+# and under $SPARK_MODELS (default ~/spark-studio-models), 101 GB:
 #   FastH3 8-Step V2 for ComfyUI, bf16 transformer 44 GB, H3 text encoder (8-bit) 27 GB, video and audio decoders 6 GB
-#   Qwen-Image-2.1 for ComfyUI, 14 GB, its text encoder (8-bit) 9 GB, decoder, and the Viggle turbo adapter 1.4 GB
-# Licenses: Qwen-Image-2.1 and the Viggle adapter are non-commercial (Qwen Research License); FastH3 and the H3
+#   Qwen-Image-2.1-Turbo for ComfyUI (the 8-step checkpoint), 14 GB, its text encoder (8-bit) 9 GB, and decoder
+# Licenses: Qwen-Image-2.1-Turbo is non-commercial (Qwen Research License); FastH3 and the H3
 # parts are under the MiniMax H3 Community License (territory limits).
-# Credit: FastVideo (Hao AI Lab), MiniMax, the Qwen team, Viggle, ComfyUI, Ash Hart (TensorFold, whose Studio this is
+# Credit: FastVideo (Hao AI Lab), MiniMax, the Qwen team, ComfyUI, Ash Hart (TensorFold, whose Studio this is
 # the CUDA build of).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,11 +104,10 @@ fetch() {
   for file in "${missing[@]}"; do [ -s "$MODELS/$folder/$file" ] || die "$file did not download"; done
 }
 
-say "Qwen-Image-2.1 for ComfyUI (26 GB) -> $MODELS"
-fetch Comfy-Org/Qwen-Image-2.1 Qwen-Image-2.1-Comfy diffusion_models/qwen_image_2.1_bf16.safetensors \
+say "Qwen-Image-2.1-Turbo for ComfyUI (24 GB) -> $MODELS"
+fetch Comfy-Org/Qwen-Image-2.1 Qwen-Image-2.1-Comfy diffusion_models/qwen_image_2.1_turbo_bf16.safetensors \
   text_encoders/qwen3vl_8b_int8_convrot.safetensors vae/qwen_image_2.1_vae_bf16.safetensors
-fetch Viggle/Qwen-Image-2.1-viggle-turbo loras Qwen-Image-2.1-viggle-turbo-v0.3-6step-lora-r256.safetensors
-ok "Qwen-Image-2.1, its text encoder and decoder, Viggle turbo adapter"
+ok "Qwen-Image-2.1-Turbo (8 steps), its text encoder and decoder"
 
 if [ "$IMAGE_ONLY" = 0 ]; then
   say "FastH3 8-Step V2 for ComfyUI (77 GB) -> $MODELS"
