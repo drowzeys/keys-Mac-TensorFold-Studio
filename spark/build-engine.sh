@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build TensorFold's H3 engine for CUDA (libtf_h3.so) into $PREFIX/tf-h3. oneshot-setup-spark.sh runs this.
 #   bash spark/build-engine.sh            # skips the build when the pinned commit is already built
-# It needs the CUDA toolkit's nvcc (12.9 or newer; a Spark has 13 at /usr/local/cuda) and fetches Zig 0.17.0 and the
+# With Docker it first tries the prebuilt engine in the carrier image (GB10, aarch64; ENGINE_FROM_SOURCE=1 skips that).
+# A build needs the CUDA toolkit's nvcc (12.9 or newer; a Spark has 13 at /usr/local/cuda) and fetches Zig 0.17.0 and the
 # engine's source (drowzeys/TensorFold at TF_COMMIT) under $PREFIX. About a minute.
 # Environment: PREFIX, NVCC, TF_COMMIT, TF_SOURCE (an existing checkout to build instead of fetching one).
 set -euo pipefail
@@ -11,6 +12,22 @@ ZIG_VERSION=0.17.0
 OUT="$PREFIX/tf-h3"
 if [ -s "$OUT/libtf_h3.so" ] && [ "$(cat "$OUT/commit" 2>/dev/null)" = "$TF_COMMIT" ] && [ -z "${TF_SOURCE:-}" ]; then
   echo "[tensorfold] engine already built at ${TF_COMMIT:0:8}"; exit 0
+fi
+# the prebuilt engine from the carrier image, when Docker is here and the image holds this commit's build
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-tensorfold-studio:2.3}"
+if [ -z "${TF_SOURCE:-}" ] && [ "${ENGINE_FROM_SOURCE:-0}" != 1 ] && [ "$(uname -m)" = aarch64 ] && command -v docker >/dev/null 2>&1 \
+   && docker info >/dev/null 2>&1 && docker pull -q "$IMAGE" >/dev/null 2>&1; then
+  TMP="$PREFIX/tf-h3.fetch"
+  rm -rf "$TMP" 2>/dev/null || true
+  mkdir -p "$TMP"
+  docker run --rm -v "$TMP":/out "$IMAGE" sh -c 'cp /payload/spark-engine/* /out/ 2>/dev/null; chmod a+rw /out/*' || true
+  if [ "$(cat "$TMP/commit" 2>/dev/null)" = "$TF_COMMIT" ] && ( cd "$TMP" && sha256sum -c SHA256SUMS >/dev/null 2>&1 ); then
+    mkdir -p "$OUT"
+    cp "$TMP/libtf_h3.so" "$TMP/commit" "$OUT/"
+    rm -rf "$TMP" 2>/dev/null || true
+    echo "[tensorfold] engine from $IMAGE (checksums verified) -> $OUT/libtf_h3.so"; exit 0
+  fi
+  rm -rf "$TMP" 2>/dev/null || true
 fi
 NVCC="${NVCC:-}"
 [ -n "$NVCC" ] || for candidate in /usr/local/cuda/bin/nvcc "$(command -v nvcc || true)"; do

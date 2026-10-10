@@ -40,7 +40,9 @@ H3_MODEL_DIR="${H3_MODEL_DIR:-$HOME/h3-models/MiniMax-H3}"
 QWEN_MODEL_DIR="${QWEN_MODEL_DIR:-$HOME/qwen-models/Qwen-Image-2.1-Turbo}"
 FASTH3_DIR="${FASTH3_DIR:-$HOME/h3-models/FastH3-8-Step-V2}"
 FASTH3_REPO="FastVideo/FastVideo-FastH3-8-Step-V2"
-IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/keys-tensorfold-studio:2.3}"
+# the carrier under its name up to 2.2, with the same Mac payload
+IMAGE_BEFORE="ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2"
 TF_REPO="https://github.com/drowzeys/TensorFold.git"
 TF_COMMIT="a2068c031e08109a0ec14c26b1ca655cf50ac34c"
 REF_REPO="https://github.com/mrbizarro/minimax-h3-mlx.git"
@@ -96,9 +98,14 @@ command -v git >/dev/null || die "git required"
 
 fetch_ghcr() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || return 1
-  echo "  payload from GHCR $IMAGE"
-  docker pull -q "$IMAGE" >/dev/null || return 1
-  docker run --rm -v "$HERE":/out "$IMAGE" cp -a /payload/. /out/payload/
+  local image
+  for image in "$IMAGE" "$IMAGE_BEFORE"; do
+    docker pull -q "$image" >/dev/null 2>&1 || continue
+    echo "  payload from GHCR $image"
+    docker run --rm -v "$HERE":/out "$image" cp -a /payload/. /out/payload/
+    return
+  done
+  return 1
 }
 
 step "TensorFold 0.6.5 + H3 and Qwen-Image families @ ${TF_COMMIT:0:8}, mflux @ ${MFLUX_COMMIT:0:8} (own venv at $PREFIX)"

@@ -77,7 +77,8 @@ bash oneshot-setup.sh            # the same command as on a Mac: on Linux it run
 bash scripts/app.sh              # http://127.0.0.1:7870
 ```
 
-The installer builds the engine from source (`spark/build-engine.sh`: it fetches Zig 0.17.0 and the engine's source,
+The installer takes the prebuilt engine from the carrier image when Docker is there, and otherwise builds it from
+source (`spark/build-engine.sh`: it fetches Zig 0.17.0 and the engine's source,
 [drowzeys/TensorFold `h3-cuda`](https://github.com/drowzeys/TensorFold/tree/h3-cuda), and needs the CUDA toolkit's
 `nvcc`, 12.9 or newer). Without it the Studio still works on ComfyUI's own blocks, slower.
 
@@ -671,14 +672,18 @@ aspect ratio.
 ### GHCR prebuilt carrier
 
 ```bash
-docker pull ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2
-# index digest: sha256:7bb760f0e1ef8013b41b05c701f675602e628a5ccf9e150a9880e587c98035af (linux/arm64 + linux/amd64)
-docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-mac-tensorfold-studio:2.2 cp -a /payload/. /out/payload/
+docker pull ghcr.io/drowzeys/keys-tensorfold-studio:2.3
+# index digest: sha256:6275122c614eab247bd4460d8cb147c9d75d7eb5cbc88243bc67b307e43e06b0 (linux/arm64 + linux/amd64)
+docker run --rm -v "$PWD":/out ghcr.io/drowzeys/keys-tensorfold-studio:2.3 cp -a /payload/. /out/payload/
 ```
 
-The carrier holds the TensorFold wheel, `requirements.lock`, the render scripts, the prebuilt native FastH3 engine (`zig-engine/tf-h3-dit`, built for Apple Silicon at the pinned commit) and `SHA256SUMS`. **It is not a
-Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs the payload natively. Rebuild it with
-`PUSH=1 bash scripts/build-carrier.sh`.
+One image for both builds. For a Mac it holds the TensorFold wheel, `requirements.lock`, the render scripts, the
+prebuilt native FastH3 engine (`zig-engine/tf-h3-dit`, built for Apple Silicon at the pinned commit) and `SHA256SUMS`.
+For a DGX Spark it holds the prebuilt CUDA engine (`spark-engine/libtf_h3.so`, GB10, aarch64), which
+`spark/build-engine.sh` takes when Docker is there and otherwise builds from source. **It is not a runtime**: neither
+Metal nor the Spark's models run in a container, so the setup installs natively. Rebuild it with
+`PUSH=1 bash scripts/build-carrier.sh` (on a Spark, after `spark/build-engine.sh`, to include its engine). Up to 2.2
+the image was `ghcr.io/drowzeys/keys-mac-tensorfold-studio`; the Mac setup still falls back to it.
 
 ## Stack
 
