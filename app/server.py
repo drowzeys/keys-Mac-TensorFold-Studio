@@ -87,13 +87,18 @@ SPARK = sys.platform.startswith("linux")
 if SPARK:
     PRESETS = {k: v for k, v in PRESETS.items() if "X2" not in v[2] and k not in ("2k", "qhd")}
     QUALITIES = {k: v for k, v in QUALITIES.items() if k.startswith("fh")}
-# FastH3 bf16 on a DGX Spark (GB10), 5 second text-to-video clips with the models already loaded, measured through
-# the scripts at 8 passes: 864x480 in 118 s (a pass is 10.5 s, text and decoding about 34 s) and 1344x768 in 289 s
-# (a pass 29.4 s with sparse attention, the rest about 54 s). The other cells follow from the pass time; 720p is
-# not measured and is scaled from 1344x768 by its rows.
-SPARK_FASTH3_5S = {"fh4": {"small": 76, "p720": 155, "native": 172},
-                   "fh8": {"small": 118, "p720": 260, "native": 289},
-                   "fh20": {"small": 244, "p720": 575, "native": 642}}
+# FastH3 on a DGX Spark (GB10), 5 second text-to-video clips with the models already loaded, measured through the
+# scripts. On TensorFold's CUDA engine: 864x480 at 4, 8 and 20 passes (54, 83, 171 s), 1280x736 at 8 (193 s, a pass
+# 18 s) and 1344x768 at 8 (217 s, a pass 21 s); the other cells follow from the pass time.
+SPARK_ENGINE_LIB = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio")) / "tf-h3" / "libtf_h3.so"
+SPARK_FASTH3_5S = {"fh4": {"small": 54, "p720": 121, "native": 133},
+                   "fh8": {"small": 83, "p720": 193, "native": 217},
+                   "fh20": {"small": 171, "p720": 409, "native": 469}}
+# On ComfyUI's own blocks in bf16 (no engine built): 864x480 at 8 passes 118 s (a pass 10.5 s) and 1344x768 289 s
+# (a pass 29.4 s with its sparse attention); 720p is scaled from 1344x768 by its rows.
+SPARK_COMFY_5S = {"fh4": {"small": 76, "p720": 155, "native": 172},
+                  "fh8": {"small": 118, "p720": 260, "native": 289},
+                  "fh20": {"small": 244, "p720": 575, "native": 642}}
 
 
 def machine() -> tuple[str, str]:
@@ -208,9 +213,9 @@ def estimate(preset: str, quality: str, seconds: int, text_only: bool = False) -
         parts = [estimate(preset, quality, piece) for piece in plan(seconds)]
         return None if None in parts else int(sum(parts) + 2 * len(parts))
     if SPARK:
-        base = SPARK_FASTH3_5S.get(quality, {}).get(preset)
+        base = (SPARK_FASTH3_5S if SPARK_ENGINE_LIB.exists() else SPARK_COMFY_5S).get(quality, {}).get(preset)
         # the pass time grows a little faster than the length: attention over all rows is part of every pass
-        return None if base is None else int(base * (seconds / 5.0) ** 1.2 * (1.0 if text_only else 1.2))
+        return None if base is None else int(base * (seconds / 5.0) ** 1.2 * (1.0 if text_only else 1.5))
     if zig_ready() and preset in ZIG_FASTH3_5S.get(quality, {}):
         return int(ZIG_FASTH3_5S[quality][preset] * (seconds / 5.0) ** ZIG_LENGTH_POWER[preset] * (1.0 if text_only else ZIG_FROM_IMAGE))
     if quality.startswith("fh") and not M5:
@@ -467,7 +472,7 @@ def state() -> dict:
             "home": str(HOME), "pack": str(PACK), "version": (PACK / "VERSION").read_text().strip(),
             "zig": zig_ready(), "turbo": turbo_ready() and not SPARK, "x2": not SPARK,
             "platform": machine()[0], "platform_label": machine()[1],
-            "engine": "CUDA · ComfyUI" if SPARK else ("native Zig engine" if zig_ready() else "MLX engine")}
+            "engine": ("CUDA · TensorFold int8" if SPARK_ENGINE_LIB.exists() else "CUDA · ComfyUI") if SPARK else ("native Zig engine" if zig_ready() else "MLX engine")}
 
 
 @app.post("/api/compose")

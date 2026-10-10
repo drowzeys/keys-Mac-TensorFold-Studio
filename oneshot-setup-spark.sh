@@ -118,6 +118,17 @@ if [ "$IMAGE_ONLY" = 0 ]; then
   ok "FastH3 transformer (bf16), H3 text encoder (8-bit), video and audio decoders"
 fi
 
+if [ "$IMAGE_ONLY" = 0 ]; then
+  say "TensorFold's H3 engine for CUDA -> $PREFIX/tf-h3"
+  if [ "$VERIFY" = 1 ]; then
+    [ -s "$PREFIX/tf-h3/libtf_h3.so" ] && ok "libtf_h3.so" || echo "  not built: clips render on ComfyUI's own blocks (slower)"
+  elif PREFIX="$PREFIX" bash "$HERE/spark/build-engine.sh"; then
+    ok "libtf_h3.so (FastH3's blocks in int8 on the tensor cores)"
+  else
+    echo "  the engine did not build: clips will render on ComfyUI's own blocks (slower). Fix and rerun spark/build-engine.sh"
+  fi
+fi
+
 if [ "$RENDER" = 1 ]; then
   say "Test render"
   mkdir -p "$HERE/outputs"

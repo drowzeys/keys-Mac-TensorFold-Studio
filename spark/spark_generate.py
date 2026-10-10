@@ -25,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 PREFIX = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio"))
 URL = os.environ.get("SPARK_COMFY_URL", "http://127.0.0.1:8190")
 STATE = PREFIX / "comfy.kind"
+ENGINE_LIB = PREFIX / "tf-h3" / "libtf_h3.so"
 
 FASTH3 = {"bf16": "fastvideo_fasth3_8step_v2_pruned_bf16.safetensors",
           "int8": "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"}
@@ -166,10 +167,14 @@ def video(args) -> None:
     if (args.frames - 5) % 17:
         sys.exit(f"--frames must be 17n + 5 (124, 192, 243, 362), got {args.frames}")
     sparsity = args.sparsity
+    if sparsity is None and args.engine == "tensorfold":
+        sparsity = 0.8    # what FastH3 was trained with; the engine's sparse kernel is the faster one at every size
     if sparsity is None:
         # sparse attention pays off once the video rows dominate. Measured on a GB10, a pass at 864x480 takes
         # 10.5 s dense and 11.1 s sparse; at 1344x768, 33.4 s dense and 29.4 s sparse
         sparsity = 0.8 if args.width * args.height >= 700_000 else 0.0
+    if args.engine == "tensorfold" and not ENGINE_LIB.exists():
+        sys.exit(f"no TensorFold engine at {ENGINE_LIB}: run spark/build-engine.sh, or use --engine comfy")
     ensure_server("video")
     model = ["2", 0]
     w = {
@@ -197,7 +202,13 @@ def video(args) -> None:
     if args.first_frame:
         w["20"] = {"class_type": "LoadImage", "inputs": {"image": upload(args.first_frame)}}
         w["6"]["inputs"]["first_frame"] = ["20", 0]
-    if sparsity > 0:
+    if args.engine == "tensorfold":
+        # the 50 blocks of every pass on TensorFold's CUDA family, int8 on the tensor cores, with FastH3's own sparse
+        # attention; ComfyUI keeps the text encoder, the sampler and the decoders
+        w["22"] = {"class_type": "TensorFoldH3Blocks",
+                   "inputs": {"model": model, "unet_name": FASTH3["bf16"], "sparsity": sparsity}}
+        model = ["22", 0]
+    elif sparsity > 0:
         # ComfyUI's compiled block-sparse kernel with FastVideo's selection: 3D video cubes, the top share kept per
         # query cube, FastH3's own gate weights for the coarse branch; text and audio rows stay exact
         w["21"] = {"class_type": "BlockSparseAttention",
@@ -210,7 +221,8 @@ def video(args) -> None:
     w["11"] = {"class_type": "CFGGuider", "inputs": {"model": model, "positive": ["6", 0], "negative": ["7", 0],
                                                      "cfg": 1.0}}
     attention = f"sparse attention {sparsity}" if sparsity > 0 else "dense attention"
-    print(f"[tensorfold] engine: cuda (ComfyUI, FastH3 {args.weights}, {attention}), generating "
+    runs = "TensorFold int8 blocks in ComfyUI" if args.engine == "tensorfold" else f"ComfyUI, FastH3 {args.weights}"
+    print(f"[tensorfold] engine: cuda ({runs}, {attention}), generating "
           f"{args.width}x{args.height}, {args.frames} frames", flush=True)
     item, seconds = render(w, "12")
     target = Path(args.output)
@@ -282,6 +294,10 @@ def main() -> None:
     v.add_argument("--first-frame", default="", help="an image the clip starts from")
     v.add_argument("--crop", default="", help="WxH centre crop of the finished clip")
     v.add_argument("--weights", choices=sorted(FASTH3), default=os.environ.get("SPARK_WEIGHTS", "bf16"))
+    v.add_argument("--engine", choices=("tensorfold", "comfy"),
+                   default=os.environ.get("SPARK_ENGINE") or ("tensorfold" if ENGINE_LIB.exists() else "comfy"),
+                   help="what runs the transformer blocks: TensorFold's CUDA family (the default once "
+                        "spark/build-engine.sh has built it) or ComfyUI's own")
     v.add_argument("--sparsity", type=float, default=None, help="sparse attention (0 is dense); default by size")
     v.set_defaults(run=video)
     i = kinds.add_parser("image")

@@ -6,7 +6,7 @@
 # It runs at low priority and is stopped if free memory falls under SPARK_MEMORY_FLOOR_MB (default 4000): on a Spark
 # the GPU and the system share one pool, and a machine that runs out can become unreachable.
 # Environment: PREFIX, SPARK_COMFY_PORT (8190), SPARK_MEMORY_FLOOR_MB, SPARK_COMFY_ARGS (ComfyUI flags,
-# default --use-ck-attention).
+# default --use-ck-attention). TF_H3_CHECK=1 and TF_H3_PROFILE=1 reach TensorFold's H3 node (see its file).
 set -euo pipefail
 PREFIX="${PREFIX:-$HOME/.local/opt/tensorfold-studio}"
 PORT="${SPARK_COMFY_PORT:-8190}"
@@ -17,6 +17,13 @@ case "${1:-start}" in
   status) pgrep -f "$MATCH" >/dev/null && echo "running on 127.0.0.1:$PORT" || echo "not running";;
   run)
     export PATH="/usr/local/cuda/bin:$PATH" CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}" MAX_JOBS="${MAX_JOBS:-2}"
+    # TensorFold's H3 engine as a ComfyUI node, when it has been built (spark/build-engine.sh)
+    NODE="$PREFIX/ComfyUI/custom_nodes/tensorfold_h3"
+    rm -rf "$NODE"
+    if [ -s "$PREFIX/tf-h3/libtf_h3.so" ]; then
+      mkdir -p "$NODE" && cp "$(cd "$(dirname "$0")" && pwd)/tensorfold_h3/__init__.py" "$NODE/"
+      export TF_H3_LIB="$PREFIX/tf-h3/libtf_h3.so"
+    fi
     cd "$PREFIX/ComfyUI"
     # --use-ck-attention: ComfyUI's own flash-attention kernel, 12% faster a pass than PyTorch's on a GB10
     # shellcheck disable=SC2086

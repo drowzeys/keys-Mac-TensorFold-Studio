@@ -57,53 +57,70 @@ Measured memory for each kind of job is under [Minimum requirements](#minimum-re
 ## DGX Spark (CUDA) build
 
 The same Studio (web app, scripts, one-shot install) also runs on an **NVIDIA DGX Spark** (GB10, 128 GB unified
-memory, CUDA 13). There the engine is not TensorFold: FastH3 and Qwen-Image-2.1 run through **ComfyUI**, pinned, with
-its own flash and block-sparse attention kernels. The header of the web app says which build you are in: a green
-`DGX SPARK · NVIDIA GB10 · CUDA` badge, or `MAC · M5 Ultra · METAL`.
+memory, CUDA 13). FastH3's transformer runs there on **TensorFold's H3 family for CUDA**: the Mac engine's design
+(int8 projections, tile-routed int8 attention with FastH3's own sparse selection) on the GB10's tensor cores, written
+in Zig over the CUDA driver. **ComfyUI**, pinned, hosts the rest: the text encoder, the sampler, the decoders and
+Qwen-Image-2.1. The header of the web app says which build you are in: a green `DGX SPARK · NVIDIA GB10 · CUDA`
+badge, or `MAC · M5 Ultra · METAL`.
 
-**Thank you** to FastVideo (Hao AI Lab) for FastH3 and its ComfyUI release, MiniMax for H3, the Qwen team, Viggle,
-and the ComfyUI team for the runtime and kernels this build stands on.
+**Thank you** to Ash Hart for TensorFold, FastVideo (Hao AI Lab) for FastH3 and its ComfyUI release, MiniMax for H3,
+the Qwen team, Viggle, and the ComfyUI team for the runtime this build stands on.
 
 ```bash
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git && cd keys-Mac-TensorFold-Studio
 sudo apt install -y git ffmpeg
-bash oneshot-setup-spark.sh      # 103 GB of models, a test image and a 5 second test clip
+bash oneshot-setup-spark.sh      # 103 GB of models, the engine build, a test image and a 5 second test clip
 bash scripts/app.sh              # http://127.0.0.1:7870
 ```
 
-Measured on one DGX Spark (2026-10-09, one run each unless a range is given; models already loaded):
+The installer builds the engine from source (`spark/build-engine.sh`: it fetches Zig 0.17.0 and the engine's source,
+[drowzeys/TensorFold `h3-cuda`](https://github.com/drowzeys/TensorFold/tree/h3-cuda), and needs the CUDA toolkit's
+`nvcc`, 12.9 or newer). Without it the Studio still works on ComfyUI's own blocks, slower.
 
-| What | Size | Frames | Passes | Time | A pass |
+Measured on one DGX Spark (2026-10-09, one run each; 124 frames, text to video, models already loaded):
+
+| Size | Passes | TensorFold engine (int8) | A pass | ComfyUI's own blocks (bf16) | A pass |
 |---|---|---|---|---|---|
-| Text to video | 864x480 | 124 (5 s) | 8 | 118 to 121 s | 10.5 s |
-| Text to video | 864x480 | 124 | 4 | 71 s | 10.5 s |
-| Text to video | 1344x768 | 124 | 8 | 289 s | 29.4 s (sparse attention) |
-| Qwen image, then video | 864x480 | 124 | 8 | 155 s with the image | |
-| Qwen image (turbo adapter, 6 nodes) | 1344x768 | | | 18 to 21 s with the model load | |
-| Three scout images | 864x480 | | | 23 s | |
+| 864x480 | 8 | **83 s** | 7.2 s | 118 to 121 s | 10.5 s |
+| 864x480 | 4 | **54 s** | | 71 s | |
+| 864x480 | 20 | **171 s** | | 244 s (from the pass time) | |
+| 1280x720 (rendered 1280x736) | 8 | **193 s** | 18 s | not measured | |
+| 1344x768 | 8 | **217 s** | 21 s | 289 s | 29.4 s |
 
-The first render after a start adds the model load (a 5 second 480p clip took 144 to 156 s from cold). Lowest free
-system memory seen was 35 GB of 121, at 1344x768.
+| Also | Time |
+|---|---|
+| A clip from an image, 864x480, 8 passes | 94 s |
+| First clip after a start, 864x480, 8 passes | 126 s (ComfyUI's blocks: 144 to 156 s) |
+| Qwen image (turbo adapter), 1344x768 | 18 to 21 s with the model load |
+| Three scout images, 864x480 | 23 s |
+
+Lowest free system memory seen with the engine was 49 GB of 121 (35 GB on ComfyUI's blocks): the transformer is held
+in int8, 21 GB instead of 42. The first use converts the checkpoint on the GPU (about 90 s) and saves the int8 copy
+beside it (`….safetensors.tf-int8`, 21 GB of disk); later starts read that in a few seconds.
+
+How close the engine is: on the same input with dense attention, the stream after all 50 blocks has cosine 0.998
+against ComfyUI's bf16 blocks. With sparse attention the same seed gives the same scene as ComfyUI's sparse path,
+and a repeat of a seed gives a bit-identical clip.
 
 What is different from the Mac build:
 
-- **Slower than an M5 Ultra**, about 2x a pass at 480p (10.5 s against 5.3 s).
+- **Slower than an M5 Ultra**, about 1.35x a pass at 480p (7.2 s against 5.3 s).
 - **FastH3 only.** No MiniMax H3 Turbo, and no 2x decoder, so the sizes are 864x480, 1280x720 and 1344x768.
-- **Full-precision (bf16) transformer by default.** The 8-bit one is not faster on a Spark (13.6 to 14 s a pass
-  against 12.0 s, same attention): bf16 matrix products run at about 97 TFLOPS on the GB10, 8-bit ones at about 52.
-  `SPARK_WEIGHTS=int8` selects it if you download the file; it saves 22 GB of memory.
-- **FastVideo's own 4-bit Spark recipe is not used.** On the test machine it gave flying debris, one clip of pure
-  noise and results that changed between identical runs.
-- **Attention.** ComfyUI's flash kernel (`--use-ck-attention`) is 12% faster a pass than PyTorch's. Sparse attention
-  (FastVideo's selection, FastH3's trained gates, ComfyUI's kernel) is switched on from about 720p up, where it
-  helps: 29.4 s a pass against 33.4 s at 1344x768. At 480p it is slower than dense (11.1 s against 10.5 s), so it
-  stays off. `SPARK_SPARSITY=0` or `0.8` forces it.
+- **Sparse attention at every size** (FastH3 was trained with it: a video tile keeps the best 20% of video tiles).
+  `SPARK_SPARSITY=0` renders with dense attention, slower.
+- **Clips from an image want the app's prompt.** The web app writes MiniMax H3's first-frame lead line and structured
+  prompt; a bare one-line prompt with `FIRST_FRAME` gave a jump cut in a test (on ComfyUI's own sparse path too).
+- `SPARK_ENGINE=comfy` renders on ComfyUI's own blocks in bf16 (dense attention under about 720p, its block-sparse
+  kernel above). The 8-bit checkpoint through ComfyUI is no faster there (13.6 to 14 s a pass), and FastVideo's
+  4-bit Spark recipe is not used: on the test machine it gave flying debris and results that changed between runs.
+- **Why int8.** The GB10's tensor cores run int8 products at 245 TOPS and bf16 ones at 122 (measured on registers).
+  PyTorch's stock int8 routine reaches about 52; the engine's own kernel 150 to 175 on FastH3's shapes.
 - ComfyUI keeps running with the models loaded after a render (`bash spark/comfy.sh stop` frees the memory). It runs
   at low priority and is stopped if free memory falls under 4 GB, because a Spark that runs out can become
   unreachable.
 
-Not tested: 1280x720, clips longer than 5 seconds, long chained videos, a download of the models from nothing (the
-files were already on the test machine), any GPU other than the GB10, and two Sparks working on one clip.
+Not tested: clips longer than 5 seconds and long chained videos on the engine, a download of the models from nothing
+(the files were already on the test machine), any GPU other than the GB10, and two Sparks working on one clip.
 
 ## What changed
 
