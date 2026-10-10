@@ -61,7 +61,7 @@ memory, CUDA 13). FastH3's transformer runs there on **TensorFold's H3 family fo
 (int8 projections, tile-routed int8 attention with FastH3's own sparse selection) on the GB10's tensor cores, written
 in Zig over the CUDA driver. **ComfyUI**, pinned, hosts the rest: the text encoder, the sampler, the decoders and
 Qwen-Image-2.1. The header of the web app says which build you are in: a green `DGX SPARK · NVIDIA GB10 · H3-CUDA`
-badge, or a purple `MAC · APPLE SILICON M5 ULTRA · H3-METAL`.
+badge, or a purple `MAC · APPLE SILICON MX · H3-METAL`.
 
 **Thank you** to Ash Hart for TensorFold, FastVideo (Hao AI Lab) for FastH3 and its ComfyUI release, MiniMax for H3,
 the Qwen team for Qwen-Image-2.1-Turbo, and the ComfyUI team for the runtime this build stands on.

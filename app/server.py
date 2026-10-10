@@ -111,11 +111,8 @@ def machine() -> tuple[str, str]:
         except (OSError, IndexError):
             gpu = "CUDA"
         return "spark", f"DGX SPARK · {gpu.upper()} · H3-CUDA"
-    try:
-        chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
-    except OSError:
-        chip = ""
-    return "mac", f"MAC · APPLE SILICON {chip.replace('Apple ', '').upper()} · H3-METAL".replace("  ", " ")
+    # no chip name: the same recipe runs from an M1 with 64 GB up
+    return "mac", "MAC · APPLE SILICON MX · H3-METAL"
 
 
 app = FastAPI(title="TensorFold Studio")
