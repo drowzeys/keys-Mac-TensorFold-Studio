@@ -18,9 +18,40 @@ runtime for FastH3 on Metal and on CUDA:
 **Qwen-Image-2.1-Turbo** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units
 and on the GB10's tensor cores · a 2x video decoder for 2K finals on the Mac
 
+## Speed: the first version on each machine, and 2.3
+
+One run each unless a range is given; 5 second clips are 124 frames. Mac: Mac Studio M5 Ultra, 256 GB. Spark: one
+NVIDIA DGX Spark (GB10), models already loaded.
+
+| 5 second clip, 864x480 | Mac, first version (1.0, 2026-10-04) | Mac, 2.3 | DGX Spark, first build (ComfyUI's own blocks, bf16) | DGX Spark, 2.3 |
+|---|---|---|---|---|
+| What makes the video | MiniMax H3 + Turbo adapter on MLX, 3 passes | FastH3, 8 passes, TensorFold's Zig + Metal engine | FastH3, 8 passes, ComfyUI | FastH3, 8 passes, TensorFold's CUDA engine in int8 |
+| Image, then video from it | 74 s (103 s with the sound made again, the later default) | **79 s** (image 6 s, video 73 s) | 155 s | **115 s** (measured before the faster decoder below, which takes about 10 s more off) |
+| Text straight to video | not offered | **66 s** | 118 to 121 s | **73 s** |
+| One denoising pass | 9.5 s | **5.3 s** | 10.5 s | **7.1 s** |
+| Video decode | not timed apart | 13 s | 26 s | **14 s** |
+
+| Other sizes and lengths | Mac, first version | Mac, 2.3 | DGX Spark, first build | DGX Spark, 2.3 |
+|---|---|---|---|---|
+| 864x480, 4 passes, text to video | | 43 s | 71 s | 45 s (from the pass time) |
+| 1280x720, 5 s, text to video | | 199 to 217 s | not measured | **183 s** |
+| 1344x768, 5 s, text to video | | 175 s | 289 s | **about 195 s** |
+| 1344x768, 8 s, image then video | 364 s (709 s with the later default) | not re-measured | | |
+| 1280x720, 10 s (243 frames), text to video | | 378 s | not measured | 444 s |
+| One 15 s part of a chained 864x480 clip | | about 249 s | not measured | about 304 s |
+| One image, 1344x768 | 9.2 s (Viggle adapter, 6 steps) | **8.9 s** (Qwen-Image-2.1-Turbo, 8 steps; peak 15 GiB against 28) | 18 to 21 s with the model load | **9.5 s** |
+
+- The Mac's first version and 2.3 use different video models, so the 74 s and 79 s rows are not the same work: the
+  first is 3 passes of MiniMax H3 with its Turbo adapter, whose sound was judged poor by ear; 2.3 is 8 passes of
+  FastH3 with its own sound. Per pass the Mac went from 9.5 s to 5.3 s.
+- On the Spark the model is the same in both columns. The gain is the engine (10.5 s a pass to 7.1 s) and the 8-bit
+  video decoder (26 s to 14 s).
+- Both engines are TensorFold H3 families built on the TensorFold 1.0.2 base. 1.0.3 and 1.0.4 are language-model
+  releases; the Mac engine rebuilt on 1.0.4 measured the same 5.3 s a pass with identical output.
+
 ## Which Mac runs what
 
-Every row is Studio **2.2**. "Default" means images (Qwen-Image-2.1) and FastH3 video with sound, the web app and
+Every row is Studio **2.3**. "Default" means images (Qwen-Image-2.1-Turbo) and FastH3 video with sound, the web app and
 the one-click app. Only the M5 Ultra with 256 GB has actually run it; every other row follows from memory measured
 on that machine and is marked untested.
 
@@ -53,7 +84,10 @@ How to configure it:
 |---|---|
 | 2.0 and earlier | 128 GB (M5 for the fast path) |
 | 2.1 | 64 GB on an M5; 96 GB on an M1 to M4 |
-| 2.2 | 64 GB on any Apple silicon |
+| 2.2 and 2.3 | 64 GB on any Apple silicon |
+
+On a **DGX Spark** the setup asks for 100 GB of memory for video (a Spark has 128 GB; about 70 GB was in use during a
+clip). No NVIDIA machine with 64 GB has been tried.
 
 Measured memory for each kind of job is under [Minimum requirements](#minimum-requirements).
 
