@@ -88,12 +88,13 @@ if SPARK:
     PRESETS = {k: v for k, v in PRESETS.items() if "X2" not in v[2] and k not in ("2k", "qhd")}
     QUALITIES = {k: v for k, v in QUALITIES.items() if k.startswith("fh")}
 # FastH3 on a DGX Spark (GB10), 5 second text-to-video clips with the models already loaded, measured through the
-# scripts. On TensorFold's CUDA engine: 864x480 at 4, 8 and 20 passes (54, 83, 171 s), 1280x736 at 8 (193 s, a pass
-# 18 s) and 1344x768 at 8 (217 s, a pass 21 s); the other cells follow from the pass time.
+# scripts on TensorFold's CUDA engine with the 8-bit video decoder at 8 passes: 864x480 in 73 s (a pass 7.1 s, the
+# decode 14 s), 1280x736 in 183 s (18 s, 28 s) and 1344x768 in about 195 s (20.5 s, 29 s). The 4 and 20 pass cells
+# follow from the pass time.
 SPARK_ENGINE_LIB = Path(os.environ.get("PREFIX", Path.home() / ".local/opt/tensorfold-studio")) / "tf-h3" / "libtf_h3.so"
-SPARK_FASTH3_5S = {"fh4": {"small": 54, "p720": 121, "native": 133},
-                   "fh8": {"small": 83, "p720": 193, "native": 217},
-                   "fh20": {"small": 171, "p720": 409, "native": 469}}
+SPARK_FASTH3_5S = {"fh4": {"small": 45, "p720": 111, "native": 113},
+                   "fh8": {"small": 73, "p720": 183, "native": 195},
+                   "fh20": {"small": 158, "p720": 399, "native": 441}}
 # On ComfyUI's own blocks in bf16 (no engine built): 864x480 at 8 passes 118 s (a pass 10.5 s) and 1344x768 289 s
 # (a pass 29.4 s with its sparse attention); 720p is scaled from 1344x768 by its rows.
 SPARK_COMFY_5S = {"fh4": {"small": 76, "p720": 155, "native": 172},

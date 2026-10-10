@@ -30,7 +30,9 @@ ENGINE_LIB = PREFIX / "tf-h3" / "libtf_h3.so"
 FASTH3 = {"bf16": "fastvideo_fasth3_8step_v2_pruned_bf16.safetensors",
           "int8": "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"}
 H3_TEXT = "qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
-H3_VAE = "minimax_h3_video_vae_fp16.safetensors"
+# ComfyUI's 8-bit video decoder: half the decode time of the fp16 one on a GB10 (14 s against 26 s for 124 frames of
+# 864x480), the same picture to 42 to 44 dB. SPARK_VAE=minimax_h3_video_vae_fp16.safetensors selects the other.
+H3_VAE = os.environ.get("SPARK_VAE", "minimax_h3_video_vae_int8_convrot.safetensors")
 H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
 QWEN = "qwen_image_2.1_turbo_bf16.safetensors"   # Qwen-Image-2.1-Turbo, the 8-step checkpoint
 QWEN_BASE = "qwen_image_2.1_bf16.safetensors"    # the 40-step base model, only when it has been downloaded

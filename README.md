@@ -70,7 +70,7 @@ the Qwen team for Qwen-Image-2.1-Turbo, and the ComfyUI team for the runtime thi
 git clone https://github.com/drowzeys/keys-Mac-TensorFold-Studio.git && cd keys-Mac-TensorFold-Studio
 sudo apt install -y git ffmpeg
 bash oneshot-setup.sh            # the same command as on a Mac: on Linux it runs oneshot-setup-spark.sh
-                                 # 101 GB of models, the engine build, a test image and a 5 second test clip
+                                 # 99 GB of models, the engine build, a test image and a 5 second test clip
 bash scripts/app.sh              # http://127.0.0.1:7870
 ```
 
@@ -82,16 +82,20 @@ Measured on one DGX Spark (2026-10-09, one run each; 124 frames, text to video, 
 
 | Size | Passes | TensorFold engine (int8) | A pass | ComfyUI's own blocks (bf16) | A pass |
 |---|---|---|---|---|---|
-| 864x480 | 8 | **83 s** | 7.2 s | 118 to 121 s | 10.5 s |
-| 864x480 | 4 | **54 s** | | 71 s | |
-| 864x480 | 20 | **171 s** | | 244 s (from the pass time) | |
-| 1280x720 (rendered 1280x736) | 8 | **193 s** | 18 s | not measured | |
-| 1344x768 | 8 | **217 s** | 21 s | 289 s | 29.4 s |
+| 864x480 | 8 | **73 s** | 7.1 s | 118 to 121 s | 10.5 s |
+| 864x480 | 4 | **45 s** (from the pass time) | | 71 s | |
+| 864x480 | 20 | **158 s** (from the pass time) | | 244 s (from the pass time) | |
+| 1280x720 (rendered 1280x736) | 8 | **183 s** | 18 s | not measured | |
+| 1344x768 | 8 | **about 195 s** | 20.5 s | 289 s | 29.4 s |
+
+The engine's column includes ComfyUI's 8-bit video decoder, the default here: it decodes 124 frames of 864x480 in
+14 s where the fp16 one takes 26 s (29 s against 42 s at 1344x768), and the picture matches the fp16 decode to 42 to
+44 dB. `SPARK_VAE=minimax_h3_video_vae_fp16.safetensors` selects the fp16 decoder if you download it.
 
 | Also | Time |
 |---|---|
-| A clip from an image, 864x480, 8 passes | 94 s |
-| First clip after a start, 864x480, 8 passes | 126 s (ComfyUI's blocks: 144 to 156 s) |
+| A clip from an image, 864x480, 8 passes | 85 s |
+| First clip after a start, 864x480, 8 passes | about 115 s (ComfyUI's blocks: 144 to 156 s) |
 | Qwen-Image-2.1-Turbo image, 1344x768 | 9.5 s (20 s with the model load) |
 | Three scout images, 864x480 | 23 s |
 

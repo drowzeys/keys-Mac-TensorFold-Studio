@@ -7,8 +7,8 @@
 # What it installs under $PREFIX (default ~/.local/opt/tensorfold-studio):
 #   venv/       Python 3.12, PyTorch for CUDA 13, ComfyUI's requirements, the web app's
 #   ComfyUI/    pinned; its own flash and block-sparse attention kernels are what the renders use
-# and under $SPARK_MODELS (default ~/spark-studio-models), 101 GB:
-#   FastH3 8-Step V2 for ComfyUI, bf16 transformer 44 GB, H3 text encoder (8-bit) 27 GB, video and audio decoders 6 GB
+# and under $SPARK_MODELS (default ~/spark-studio-models), 99 GB:
+#   FastH3 8-Step V2 for ComfyUI, bf16 transformer 44 GB, H3 text encoder (8-bit) 27 GB, video (8-bit) and audio decoders 3 GB
 #   Qwen-Image-2.1-Turbo for ComfyUI (the 8-step checkpoint), 14 GB, its text encoder (8-bit) 9 GB, and decoder
 # Licenses: Qwen-Image-2.1-Turbo is non-commercial (Qwen Research License); FastH3 and the H3
 # parts are under the MiniMax H3 Community License (territory limits).
@@ -111,11 +111,11 @@ fetch Comfy-Org/Qwen-Image-2.1 Qwen-Image-2.1-Comfy diffusion_models/qwen_image_
 ok "Qwen-Image-2.1-Turbo (8 steps), its text encoder and decoder"
 
 if [ "$IMAGE_ONLY" = 0 ]; then
-  say "FastH3 8-Step V2 for ComfyUI (77 GB) -> $MODELS"
+  say "FastH3 8-Step V2 for ComfyUI (75 GB) -> $MODELS"
   fetch FastVideo/FastVideo-FastH3-Comfy FastH3-Comfy diffusion_models/fastvideo_fasth3_8step_v2_pruned_bf16.safetensors \
-    text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors vae/minimax_h3_video_vae_fp16.safetensors \
+    text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors vae/minimax_h3_video_vae_int8_convrot.safetensors \
     vae/minimax_h3_audio_vae_fp32.safetensors
-  ok "FastH3 transformer (bf16), H3 text encoder (8-bit), video and audio decoders"
+  ok "FastH3 transformer (bf16), H3 text encoder (8-bit), video decoder (8-bit) and audio decoder"
 fi
 
 if [ "$IMAGE_ONLY" = 0 ]; then

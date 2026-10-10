@@ -216,8 +216,49 @@ class Blocks:
             module.forward = lambda x, *a, **k: original(quant(x), *a, **k)
             return lambda: setattr(module, "forward", original)
 
-        h = args["img"].clone()
-        for index in (0, 12, 25, 40, 49):
+        # all 50 blocks with the activations' rounding emulated, a scale a row against 128 channels apart
+        def through(quant):
+            undo = []
+            if quant is not None:
+                for block in self.model.blocks:
+                    for module in (block.attn.qkv_proj, block.attn.out_proj, block.mlp.fc1):
+                        undo.append(wrap_input(module, quant))
+            x = args["img"].clone()
+            for block in self.model.blocks:
+                x = block(x, args["t_emb"], args["mod_segments"], args["rope_freqs"], transformer_options=options)
+            for u in undo:
+                u()
+            return x
+
+        want = through(None)
+        def clipped(x, sigmas, count=0):
+            # a scale a row that reaches `sigmas` times the row's rms (never past its largest); larger values saturate
+            y = x.float()
+            chosen = torch.zeros(y.shape[1], dtype=torch.bool, device=y.device)
+            if count:
+                chosen[torch.topk(y.abs().amax(dim=0), count).indices] = True
+            out = torch.empty_like(y)
+            for part in ((~chosen,) if not count else (chosen, ~chosen)):
+                z = y[:, part]
+                top = torch.minimum(z.abs().amax(dim=1, keepdim=True), sigmas * z.pow(2).mean(dim=1, keepdim=True).sqrt()).clamp_min(1e-12)
+                out[:, part] = (z * (127.0 / top)).round().clamp(-127, 127) * (top / 127.0)
+            return out.to(x.dtype)
+
+        for label, quant in (("a scale a row", rows), ("clipped at 8 rms", lambda x: clipped(x, 8.0)), ("clipped at 6 rms", lambda x: clipped(x, 6.0)),
+                             ("clipped at 5 rms", lambda x: clipped(x, 5.0)), ("clipped at 4 rms", lambda x: clipped(x, 4.0)),
+                             ("128 apart, clipped at 6 rms", lambda x: clipped(x, 6.0, 128)), ("128 apart, clipped at 5 rms", lambda x: clipped(x, 5.0, 128)),
+                             ("128 apart, clipped at 4 rms", lambda x: clipped(x, 4.0, 128))):
+            got = through(quant)
+            logging.info(f"TensorFold H3 sources: 50 blocks, activations rounded with {label}: cosine {cosine(got, want):.5f}, "
+                         f"relative error {float((got.float() - want.float()).norm() / want.float().norm()):.4f}")
+            del got
+        got = args["img"].clone()
+        self.run({**args, "img": got}, dense=True)
+        logging.info(f"TensorFold H3 sources: 50 blocks, the engine: cosine {cosine(got, want):.5f}, "
+                     f"relative error {float((got.float() - want.float()).norm() / want.float().norm()):.4f}")
+        del want, got
+        crests.clear()
+        for index in ():
             block = self.model.blocks[index]
             # the stream as this block meets it
             x = args["img"].clone()
