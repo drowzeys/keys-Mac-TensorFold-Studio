@@ -16,6 +16,11 @@ bash scripts/image.sh "a prompt" out.png
 FIRST_FRAME=photo.jpg bash scripts/video.sh "what happens next" out.mp4
 ```
 
+On a **DGX Spark** (Linux, CUDA) the same `bash oneshot-setup.sh` installs the CUDA build (it hands over to
+`oneshot-setup-spark.sh`): needs `git`, `ffmpeg` and the CUDA toolkit's `nvcc` (12.9 or newer), 99 GB of models, about
+100 GB of memory for video. Its options are `--image-only`, `--no-render` and `--verify`; there is no `--turbo` and no
+2x decoder there. `bash spark/comfy.sh stop` frees the models' memory after rendering.
+
 ## Install for a person and build the one-click app
 
 Do these in order on the person's Mac, and report each result plainly.
@@ -56,7 +61,7 @@ same scripts through a one-at-a-time queue and stores everything under `~/Tensor
 Rules:
 
 - This is not a server. `tensorfold serve` routes neither model; render with the scripts.
-- Qwen-Image-2.1 and the Viggle adapter are non-commercial (Qwen Research License). MiniMax H3 has territory limits.
+- Qwen-Image-2.1-Turbo is non-commercial (Qwen Research License). MiniMax H3 has territory limits.
   Do not redistribute weights, and say so when asked to use the outputs commercially.
 - Image sizes are multiples of 16. For the studio chain both models must accept the canvas: multiples of 32, at most
   768x1344 pixels in total. Video frames must be `17n + 5` (56, 73, 90, 124, 192, 243, 362).

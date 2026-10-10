@@ -1,4 +1,4 @@
-# keys-Mac-TensorFold-Studio (MiniMax H3 + Qwen-Image-2.1)
+# keys-Mac-TensorFold-Studio (MiniMax H3 + Qwen-Image-2.1-Turbo, Mac and DGX Spark)
 
 [![TensorFold Studio: Qwen-Image 2.1, MiniMax H3 and FastH3 on Apple silicon](samples/banner.jpg)](https://github.com/drowzeys/keys-Mac-TensorFold-Studio)
 
@@ -6,14 +6,15 @@
 
 **Thank you to everyone this stands on:** the Qwen team at Alibaba (Qwen-Image-2.1, Qwen3-VL), the MiniMax team
 (MiniMax H3), Ash Hart and the TensorFold contributors, antirez (h3.c), RobZombAI (H3MLX), mrbizarro (minimax-h3-mlx /
-Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo adapter), speach1sdef178 (the 2x video
+Phosphene), Filip Strand and the mflux contributors, Viggle (the image turbo adapter up to 2.2), speach1sdef178 (the 2x video
 decoder), LightX2V (the video Turbo adapter), NVIDIA Research (Sol-Engine, Sol-Attn, Sol-H3), FastVideo (FastH3), and Apple's MLX team and every MLX
 contributor. This pack is their work, ported, pinned and measured. See [CREDITS.md](CREDITS.md). Built with Qwen.
 
-**2.2** · Mac Studio M5 Ultra 256 GB · [TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families,
-and TensorFold **1.0**'s native Zig runtime for FastH3:
-**Qwen-Image-2.1** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units ·
-few-step adapters for both · a 2x video decoder for 2K finals
+**2.3** · Apple-silicon Macs (measured on a Mac Studio M5 Ultra 256 GB) and the NVIDIA DGX Spark ·
+[TensorFold](https://github.com/ashhart/TensorFold) **0.6.5** + two families, and TensorFold **1.0**'s native Zig
+runtime for FastH3 on Metal and on CUDA:
+**Qwen-Image-2.1-Turbo** (text to image) and **MiniMax H3** (video with sound) · int8 kernels on the M5 tensor units
+and on the GB10's tensor cores · a 2x video decoder for 2K finals on the Mac
 
 ## Which Mac runs what
 
@@ -132,6 +133,23 @@ Not tested: clips longer than 15 seconds in one piece, chains longer than 30 sec
 
 ## What changed
 
+> **2.3 (2026-10-09): a DGX Spark build on TensorFold's own CUDA engine, Qwen-Image-2.1-Turbo for images, one install
+> command.** The same Studio now runs on an NVIDIA DGX Spark: FastH3's transformer on a new CUDA family of TensorFold
+> (the Mac engine's design in int8 on the GB10's tensor cores), with ComfyUI hosting the text encoder, the sampler
+> and the decoders. A 5 second 864x480 clip takes **73 s** there (118 to 121 s on ComfyUI's own blocks), 1280x720
+> 183 s and 1344x768 about 195 s; see [DGX Spark (CUDA) build](#dgx-spark-cuda-build). `bash oneshot-setup.sh` picks
+> the Mac or the Spark build by itself, and the web app's header says which one you are in: a purple
+> `MAC · APPLE SILICON MX · H3-METAL` or a green `DGX SPARK · NVIDIA GB10 · H3-CUDA`.
+> **Images come from Qwen-Image-2.1-Turbo**, the Qwen team's own 8-step checkpoint, in place of the base model with
+> Viggle's adapter: on the M5 Ultra a 1344x768 image takes 8.9 s (9.4 s before) and peaks at 15 GiB instead of 28,
+> since no adapter is merged. An install from before keeps working on what it has; the setup fetches Turbo's
+> transformer (14 GB) and links the text encoder and decoder it already holds. Video on the Mac is unchanged, and
+> so is its speed (TensorFold 1.0.4 was tried under the engine: the same 5.3 s a pass).
+> **For people at 864x480, start from an image** (the default flow: prompt, still, then video). Text straight to
+> video at that size gave distorted close-up faces in tests on both ComfyUI's blocks and the engine; from a still the
+> face holds. **A shot with several linked actions works better as one action per segment**, each opening on the
+> last frame of the one before (the Production tab), than as one prompt.
+>
 > **2.2 (2026-10-08): 8-bit FastH3 weights, so a 64 GB M1 to M4 Mac fits too.** Those chips have no tensor units, so
 > they run FastH3 on the MLX engine, which held the whole checkpoint in bfloat16: 64 GiB. The setup now writes the
 > 50 blocks' weights once in MLX's 8-bit quantized form (37 GB on disk, converted a block at a time in 9 GiB of
@@ -230,7 +248,7 @@ small change, as it does between bfloat16 and int8 on the M5).
 | macOS 26 | Untested. The kernels need Metal 4, so it is the likely minimum. |
 
 Installed size: about 175 GB, nearly all model weights (FastH3 65 GB, MiniMax H3's text encoder and decoders 72 GB,
-Qwen-Image-2.1 31 GB, the image adapter and the 2x decoder 7 GB, Python environment 1.3 GB). `--turbo` adds 64 GB
+Qwen-Image-2.1-Turbo 31 GB, the 2x decoder 6 GB, Python environment 1.3 GB). `--turbo` adds 64 GB
 (MiniMax H3's transformer 62 GB and the Turbo adapter 2 GB). The Studio's own code and the native engine are a few
 megabytes. On an M1 to M4 the setup also writes the 8-bit FastH3 weights (37 GB); `Q8_ONLY=1` then deletes the
 65 GB they were made from. If you run it on another machine, a report of the chip, memory and times is welcome as an issue.
@@ -444,7 +462,7 @@ slower than a quiet run would be (the MLX figure was 192 s when first measured);
 
 1. **You write two prompts**: what the picture shows, and what happens in the clip (action, spoken or sung words,
    sound).
-2. **Qwen-Image-2.1 makes the first frame** from the first prompt, in about 10 seconds with its turbo adapter. Or it
+2. **Qwen-Image-2.1-Turbo makes the first frame** from the first prompt, in about 9 seconds (8 steps). Or it
    makes several scouts for you to choose from.
 3. **MiniMax H3 animates that frame** from the second prompt, with sound, in one of two modes:
    - **Standard (Turbo 5).** The Turbo adapter denoises picture and sound together in 5 passes. The adapter is then
@@ -566,7 +584,8 @@ read of the text encoder.
 | mflux `add5164`, bfloat16 (the reference this port is checked against) | 40 | 0.73 s | 29 s | 40.7 s |
 | TensorFold, bfloat16 | 40 | 0.78 s | 31.0 s | 34.3 s |
 | TensorFold, int8 kernels | 40 | 0.48 s | 19.2 s | 24.3 s |
-| **TensorFold, int8 kernels + Viggle turbo adapter** | **6** | 0.50 s | **3.0 s** | **9.2 s** |
+| TensorFold, int8 kernels + Viggle turbo adapter (the default up to 2.2) | 6 | 0.50 s | 3.0 s | 9.2 s |
+| **TensorFold, int8 kernels, Qwen-Image-2.1-Turbo (2.3, measured 2026-10-09; peak 15 GiB against 28)** | **8** | 0.49 s | **3.9 s** | **8.9 s** |
 
 ![mflux bf16 40 steps / TensorFold bf16 40 steps / TensorFold int8 40 steps / TensorFold int8 turbo 6 steps](samples/qwen_image_compare.jpg)
 
@@ -598,8 +617,8 @@ bash oneshot-setup.sh --image-only  # or just Qwen-Image-2.1: 33 GB
    from the [v2.0 release](https://github.com/drowzeys/keys-Mac-TensorFold-Studio/releases/tag/v2.0); no Zig toolchain is needed.
 2. Installs it with mflux at `add5164e` and the dependency lock ([`requirements.lock`](requirements.lock): mlx 0.32.3,
    mlx-lm 0.32.0, mlx-vlm 0.7.4, …) into its own venv at `~/.local/opt/tensorfold-studio`.
-3. Downloads `Qwen/Qwen-Image-2.1` (33 GB) to `~/qwen-models/Qwen-Image-2.1` and the Viggle turbo adapter (1.36 GB,
-   checksum verified).
+3. Downloads `Qwen/Qwen-Image-2.1-Turbo` (33 GB) to `~/qwen-models/Qwen-Image-2.1-Turbo`. Where an earlier install's
+   `Qwen-Image-2.1` sits beside it, only the transformer (14 GB) is fetched and the rest is linked.
 4. Unless `--image-only`: clones minimax-h3-mlx at `79190205`, downloads the FastH3 transformer (65 GB), the MiniMax
    H3 `FL2VA` partition without its transformer (72 GB: the text encoder and the two decoders) to
    `~/h3-models/MiniMax-H3` and the 2x video decoder (5.2 GB, checksum verified). With `--turbo`, the whole
@@ -666,8 +685,8 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 | Host | Mac Studio M5 Ultra, 256 GB, macOS 27.0.1 |
 | Engine | TensorFold 0.6.5 (`609ca419`) + twelve commits, `drowzeys/TensorFold` branch `studio` @ `a2068c031e08109a0ec14c26b1ca655cf50ac34c` (Apache-2.0) |
 | Native engine (FastH3) | TensorFold 1.0.2's Zig + Metal runtime + an H3 family, `drowzeys/TensorFold` branch `h3-firstframe` @ `4741fd0adef0b8864bfb61f12464682e645ec3b7`; built with Zig 0.17 |
-| Image model | `Qwen/Qwen-Image-2.1`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder |
-| Image adapter | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes |
+| Image model | `Qwen/Qwen-Image-2.1-Turbo`: 7B transformer (32 blocks, bfloat16), 64-channel VAE, Qwen3-VL text encoder; 8 steps on the schedule saved with the checkpoint |
+| Image adapter (installs from before 2.3) | `Viggle/Qwen-Image-2.1-viggle-turbo`, v0.3, rank 256, 6 steps on its trained nodes, on `Qwen/Qwen-Image-2.1` |
 | Video model | `MiniMaxAI/MiniMax-H3`, `FL2VA` partition: 33B transformer, Qwen3-VL text encoder, video and audio VAEs |
 | Video adapter | lightx2v MiniMax H3 Turbo v1.0, runner layout as published by Phosphene |
 | 2x video decoder | `speach1sdef178/MiniMax-H3-X2-Detail-VAE`, `MiniMax-H3-X2-Detail-v1.safetensors` (decoder only; its reference-detail branch is not used) |
@@ -677,7 +696,7 @@ Mac runtime**: Metal does not run in a container, so `oneshot-setup.sh` installs
 
 ## Notes
 
-- **Licences decide what you may do with this.** Qwen-Image-2.1 and the Viggle adapter are under the **Qwen Research
+- **Licences decide what you may do with this.** Qwen-Image-2.1-Turbo (and Qwen-Image-2.1 with the Viggle adapter) are under the **Qwen Research
   License Agreement: non-commercial research and evaluation only**; commercial use needs a licence from the Qwen
   team. MiniMax H3 and the 2x decoder derived from it are under the MiniMax H3 Community License, which excludes some
   territories. This pack ships no

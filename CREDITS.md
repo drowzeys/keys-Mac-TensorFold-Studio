@@ -18,7 +18,13 @@ module tree, running the text prefix once and reusing its keys and values, the r
 and the VAE. It is also the reference every number here was checked against, and this pack still runs its prompt
 encoder directly. mflux does much more than this port: editing, reference images, transparent output. (MIT.)
 
-## The image turbo adapter: Viggle
+## The image model since 2.3: Qwen-Image-2.1-Turbo
+
+The **Qwen team** released **Qwen-Image-2.1-Turbo**, their own 8-step checkpoint with its sampling schedule saved
+in it; the Studio's images come from it since 2.3. The DGX Spark build loads ComfyUI's one-file repack of it
+(`Comfy-Org/Qwen-Image-2.1`).
+
+## The image turbo adapter up to 2.2: Viggle
 
 **Viggle** distilled **Qwen-Image-2.1-viggle-turbo**, the 6-step adapter behind the fast image numbers here, and
 documented its nodes and schedule precisely enough to reproduce. (Qwen Research License.)
